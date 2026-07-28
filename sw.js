@@ -12,7 +12,7 @@
      → CACHE FIRST (rarely changes, needed for offline play)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260728005811';
+const CACHE_VERSION = 'rp-20260728015804';
 
 // App shell — cached immediately on install
 const PRECACHE = [
@@ -138,17 +138,10 @@ self.addEventListener('message', event => {
     return;
   }
 
-  // ── GitHub raw update: re-fetch files and cache under Netlify-origin keys ──
-  // The page sends { type: 'cacheGitHubFiles', urls: [...] } with a MessageChannel
-  // port for the response. We fetch each GitHub raw URL and store it in the cache
-  // under the equivalent local key (./index.html, ./sw.js, ./version.json) so
-  // the next page load serves the fresh version without a Netlify deploy.
   if (event.data && event.data.type === 'cacheGitHubFiles') {
     const port = event.ports[0];
     const urls = event.data.urls || [];
 
-    // Map GitHub raw URL → local cache key
-    // e.g. https://raw.githubusercontent.com/USER/REPO/main/index.html → ./index.html
     const toLocalKey = (rawUrl) => {
       const filename = rawUrl.split('/').pop().split('?')[0];
       return './' + filename;
@@ -157,15 +150,10 @@ self.addEventListener('message', event => {
     caches.open(CACHE_VERSION).then(async (cache) => {
       try {
         await Promise.all(urls.map(async (rawUrl) => {
-          const cleanUrl = rawUrl.split('?')[0]; // strip any ?t= param
-          const r = await fetch(cleanUrl + '?t=' + Date.now(), {
-            cache: 'no-store'
-          });
+          const cleanUrl = rawUrl.split('?')[0];
+          const r = await fetch(cleanUrl + '?t=' + Date.now(), { cache: 'no-store' });
           if (!r.ok) throw new Error('Failed to fetch ' + cleanUrl);
-          const localKey = toLocalKey(cleanUrl);
-          // Cache under the local key so the next navigate serves fresh content
-          await cache.put(localKey, r.clone());
-          // Also cache under the full GitHub URL in case anything references it
+          await cache.put(toLocalKey(cleanUrl), r.clone());
           await cache.put(cleanUrl, r);
         }));
         if (port) port.postMessage({ ok: true });
@@ -174,7 +162,6 @@ self.addEventListener('message', event => {
         if (port) port.postMessage({ ok: false, error: err.message });
       }
     }).catch(err => {
-      console.warn('[SW] caches.open error:', err);
       if (port) port.postMessage({ ok: false, error: err.message });
     });
   }

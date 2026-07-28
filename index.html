@@ -4970,11 +4970,11 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260728005811';
+const APP_VERSION = '20260728015804';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
-const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/';
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/coops-emulator/rom-player/main/';
 const VERSION_URL     = GITHUB_RAW_BASE + 'version.json';
 const FILES_TO_UPDATE = [
   GITHUB_RAW_BASE + 'index.html',
@@ -5130,17 +5130,6 @@ async function applyUpdate() {
   showToast('Downloading update from GitHub…');
 
   try {
-    // Fetch all updated files directly from GitHub raw (bypass Netlify entirely)
-    const responses = await Promise.all(
-      FILES_TO_UPDATE.map(url =>
-        fetch(url + '?t=' + Date.now(), { cache: 'no-store', signal: AbortSignal.timeout(15000) })
-          .then(r => { if (!r.ok) throw new Error('Fetch failed: ' + url); return r; })
-      )
-    );
-
-    // Hand the URLs to the SW — it re-fetches and caches them under their
-    // Netlify-origin keys (./index.html, ./sw.js, ./version.json) so the
-    // next load serves the new files instead of the old cached ones.
     const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
     if (!sw) throw new Error('No SW controller');
 
@@ -5151,8 +5140,7 @@ async function applyUpdate() {
         else reject(new Error(e.data && e.data.error || 'SW cache failed'));
       };
       sw.postMessage({ type: 'cacheGitHubFiles', urls: FILES_TO_UPDATE }, [channel.port2]);
-      // Timeout if SW doesn't respond
-      setTimeout(() => reject(new Error('SW timeout')), 12000);
+      setTimeout(() => reject(new Error('SW timeout')), 15000);
     });
 
     showToast('✓ Update cached — reloading…');
