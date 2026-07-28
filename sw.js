@@ -12,7 +12,7 @@
      → CACHE FIRST (rarely changes, needed for offline play)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260728015804';
+const CACHE_VERSION = 'rp-20260728025508';
 
 // App shell — cached immediately on install
 const PRECACHE = [
@@ -133,36 +133,5 @@ async function cacheFirst(request) {
 }
 
 self.addEventListener('message', event => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
-    return;
-  }
-
-  if (event.data && event.data.type === 'cacheGitHubFiles') {
-    const port = event.ports[0];
-    const urls = event.data.urls || [];
-
-    const toLocalKey = (rawUrl) => {
-      const filename = rawUrl.split('/').pop().split('?')[0];
-      return './' + filename;
-    };
-
-    caches.open(CACHE_VERSION).then(async (cache) => {
-      try {
-        await Promise.all(urls.map(async (rawUrl) => {
-          const cleanUrl = rawUrl.split('?')[0];
-          const r = await fetch(cleanUrl + '?t=' + Date.now(), { cache: 'no-store' });
-          if (!r.ok) throw new Error('Failed to fetch ' + cleanUrl);
-          await cache.put(toLocalKey(cleanUrl), r.clone());
-          await cache.put(cleanUrl, r);
-        }));
-        if (port) port.postMessage({ ok: true });
-      } catch(err) {
-        console.warn('[SW] cacheGitHubFiles error:', err);
-        if (port) port.postMessage({ ok: false, error: err.message });
-      }
-    }).catch(err => {
-      if (port) port.postMessage({ ok: false, error: err.message });
-    });
-  }
+  if (event.data === 'skipWaiting') self.skipWaiting();
 });

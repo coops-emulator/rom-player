@@ -218,6 +218,7 @@ body {
   font-family: var(--font);
 }
 .theme-btn:hover { border-color: var(--accent); color: var(--text); }
+.theme-btn.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 /* ─── Home tabs ─── */
 .home-tabs {
@@ -1530,6 +1531,7 @@ body.game-active .wrap {
     <div class="hdr-btn-row">
       <button class="theme-btn" onclick="showTutorial('welcome')">? Help</button>
       <button class="theme-btn" onclick="openSettings()">⚙️ Settings</button>
+      <button class="theme-btn" id="tab-signin-btn" onclick="showHomeTab(this,'tab-signin')">👤 Sign In</button>
     </div>
   </div>
 </div>
@@ -1542,7 +1544,6 @@ body.game-active .wrap {
       <button class="htab on" onclick="showHomeTab(this,'tab-load')">▶ Play</button>
       <button class="htab" onclick="showHomeTab(this,'tab-lib')">📚 Library</button>
       <button class="htab" onclick="showHomeTab(this,'tab-rx')">🔄 ROM Exchange</button>
-      <button class="htab" id="tab-signin-btn" onclick="showHomeTab(this,'tab-signin')">👤 Sign In</button>
     </div>
 
     <!-- Play tab -->
@@ -2374,6 +2375,8 @@ setInterval(updateClock, 1000);
 
 function showHomeTab(btn, id) {
   document.querySelectorAll('.htab').forEach(t => t.classList.remove('on'));
+  const signinHdrBtn = document.getElementById('tab-signin-btn');
+  if (signinHdrBtn) signinHdrBtn.classList.remove('on');
   ['tab-load','tab-lib','tab-rx','tab-settings','tab-signin'].forEach(t => {
     const el = document.getElementById(t);
     if (el) el.style.display = 'none';
@@ -4970,7 +4973,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260728015804';
+const APP_VERSION = '20260728025508';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
