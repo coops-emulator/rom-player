@@ -12,7 +12,7 @@
      → CACHE FIRST (rarely changes, needed for offline play)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260728025508';
+const CACHE_VERSION = 'rp-20260728083216';
 
 // App shell — cached immediately on install
 const PRECACHE = [
