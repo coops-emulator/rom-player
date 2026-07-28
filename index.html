@@ -4110,7 +4110,7 @@ async function launch(romUrl, sys, name, file) {
     window.EJS_core          = sys.core;
     window.EJS_gameUrl       = romUrl;
     window.EJS_gameName      = name;
-    window.EJS_pathtodata    = './data/';
+    window.EJS_pathtodata    = 'https://cdn.emulatorjs.org/stable/data/';
     window.EJS_startOnLoaded = true;
     window.EJS_color         = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7c6af7';
     window.EJS_backgroundColor = '#000000';
@@ -4174,7 +4174,7 @@ async function launch(romUrl, sys, name, file) {
     // ─────────────────────────────────────────────────────────────────────
 
     const s = document.createElement('script');
-    s.id = 'ejs-loader'; s.src = './data/loader.js';
+    s.id = 'ejs-loader'; s.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
     s.onerror = () => { showErr('Could not load emulator — check your internet connection.'); hideLaunchSplash(); goBack(); };
     document.body.appendChild(s);
   });
@@ -4973,7 +4973,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260728083216';
+const APP_VERSION = '20260728095250';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.

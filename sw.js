@@ -1,18 +1,19 @@
 /* ═══════════════════════════════════════════════════
    ROM Player by Coops — Service Worker
-   EmulatorJS is served locally from ./data/
-   so everything works fully offline.
+   EmulatorJS is served from the official CDN and
+   cached on first use — works fully offline after
+   each core has been loaded at least once.
 
-   STRATEGY (fixed):
+   STRATEGY:
    - index.html + version.json → NETWORK FIRST
      (so deploys show up immediately, falls back to
       cache only when truly offline)
    - Everything else (emulator cores, icons, manifest,
-     peerjs, cover art from raw.githubusercontent.com)
-     → CACHE FIRST (rarely changes, needed for offline play)
+     peerjs, cover art) → CACHE FIRST (cached on first
+     load, offline forever after)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260728083216';
+const CACHE_VERSION = 'rp-20260728095250';
 
 // App shell — cached immediately on install
 const PRECACHE = [
@@ -21,8 +22,8 @@ const PRECACHE = [
   './icon-180.png',
   './icon-192.png',
   './icon-512.png',
-  './data/loader.js',
-  './data/emulator.js',
+  'https://cdn.emulatorjs.org/stable/data/loader.js',
+  'https://cdn.emulatorjs.org/stable/data/emulator.js',
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
 ];
 
