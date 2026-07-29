@@ -1715,11 +1715,24 @@ body.game-active .wrap {
               <div class="premium-feature-sub">Active</div>
             </div>
           </div>
-          <div class="premium-feature-row">
-            <div class="premium-feature-icon">🔗</div>
-            <div>
+          <div class="premium-feature-row" style="flex-wrap:wrap;gap:8px">
+            <div class="premium-feature-icon">📦</div>
+            <div style="flex:1">
               <div class="premium-feature-label">ROM Storage</div>
-              <div class="premium-feature-sub">Google Drive / Dropbox — coming soon</div>
+              <div class="premium-feature-sub" id="dropbox-status-label">Connect Dropbox to sync your ROMs</div>
+            </div>
+            <button class="rx-btn accent" id="dropbox-connect-btn" onclick="connectDropbox()" style="flex-shrink:0">Connect Dropbox</button>
+          </div>
+          <div id="dropbox-scan-row" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surf2);border-radius:10px;border:1px solid var(--border)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div>
+                <div style="font-size:13px;font-weight:600" id="dropbox-account-label">Dropbox connected</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px" id="dropbox-scan-status">Tap to scan for ROMs</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="rx-btn accent" onclick="scanDropboxForROMs()" id="dropbox-scan-btn">Scan for ROMs</button>
+                <button class="rx-btn" onclick="disconnectDropbox()">Disconnect</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3120,6 +3133,33 @@ async function libPlayFromDB(name, core, sysLabel) {
     }
   }
 
+  // ── Dropbox fallback: download ROM from Dropbox if not stored locally ──
+  if (!buf && meta && meta.romPointer && meta.romPointer.provider === 'dropbox') {
+    if (!_dbxToken) {
+      showToast('Connect Dropbox in the Sign In tab to play this ROM');
+      return;
+    }
+    showToast('⬇️ Downloading from Dropbox…');
+    try {
+      const blob = await downloadFromDropbox(meta.romPointer.path);
+      buf = await blob.arrayBuffer();
+      // Store locally so next play is instant
+      const ext = meta.romPointer.path.split('.').pop().toLowerCase();
+      const opfsFilename = 'rom_' + id.replace(/[^a-zA-Z0-9_]/g,'_') + '.' + ext;
+      try {
+        await opfsWrite(opfsFilename, buf);
+        if (meta) {
+          meta.romInOpfs = true;
+          meta.opfsFilename = opfsFilename;
+          await dbPut(META_STORE, meta);
+        }
+      } catch(e) { /* OPFS failed — play from memory this session */ }
+    } catch(e) {
+      showToast('❌ Dropbox download failed — ' + e.message);
+      return;
+    }
+  }
+
   if (!buf) { openRelaunchModal({ name, core, sysLabel }); return; }
   const url = URL.createObjectURL(new Blob([buf]));
   const sys = Object.values(SYS).find(s => s.core === core) || { label:sysLabel, bg:'#222', fg:'#aaa', core };
@@ -4338,6 +4378,11 @@ async function saveToSlot(slot) {
     });
     showToast(slot===0 ? '💾 Quick saved' : '💾 Saved to slot '+slot);
     renderSlots();
+    // ── Auto-upload save to Dropbox for premium users ──
+    if (_isPremium && _dbxToken) {
+      const filename = (_currentGame + '_slot' + slot + '.bin').replace(/[^a-zA-Z0-9_\-.]/g, '_');
+      uploadSaveToDropbox(filename, bytes).catch(e => console.warn('[Dropbox] save upload failed:', e));
+    }
   } catch(e) { showToast('⚠️ '+e.message); }
 }
 
@@ -4973,7 +5018,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260728095250';
+const APP_VERSION = '20260729070202';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5434,7 +5479,7 @@ async function _processRedeem(inp) {
   const hash = await _sha256(code);
 
   try {
-    const r = await fetch('/.netlify/functions/redeem-code', {
+    const r = await fetch('https://romplayerbycoops.pages.dev/functions/redeem-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codeHash: hash, userId: _currentUser.id })
@@ -5481,7 +5526,243 @@ function openSubscribePage() {
   showToast('Stripe coming soon — use a redeem code for now');
 }
 
-// Chain all openSettings hooks: update check + coops gold + premium UI
+// ══════════════════════════════════════════════════════════════
+// DROPBOX INTEGRATION — Premium users only
+// ══════════════════════════════════════════════════════════════
+const DROPBOX_APP_KEY   = 'kgy1xf57bh26gsi';
+const DROPBOX_REDIRECT  = 'https://romplayerbycoops.pages.dev/';
+const DROPBOX_TOKEN_KEY = 'dbx_token';
+const DROPBOX_ACCT_KEY  = 'dbx_account';
+
+const ROM_EXTENSIONS = [
+  '.nes','.snes','.smc','.sfc','.gba','.gbc','.gb',
+  '.n64','.z64','.v64','.nds','.gen','.md','.smd',
+  '.iso','.bin','.cue','.chd','.pbp',
+  '.gg','.sms','.pce','.32x','.ngp','.ngc',
+  '.ws','.wsc','.a26','.lnx','.jag'
+];
+
+let _dbxToken = null;
+
+function initDropbox() {
+  // Check if returning from OAuth
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token=')) {
+    const params = new URLSearchParams(hash.replace('#', '?'));
+    const token = params.get('access_token');
+    if (token) {
+      _dbxToken = token;
+      localStorage.setItem(DROPBOX_TOKEN_KEY, token);
+      history.replaceState(null, '', window.location.pathname);
+      showToast('✅ Dropbox connected!');
+      _updateDropboxUI();
+      _fetchDropboxAccount();
+      return;
+    }
+  }
+  const stored = localStorage.getItem(DROPBOX_TOKEN_KEY);
+  if (stored) {
+    _dbxToken = stored;
+    _updateDropboxUI();
+    _fetchDropboxAccount();
+  }
+}
+
+function connectDropbox() {
+  if (!_isPremium) { showToast('Premium required to connect Dropbox'); return; }
+  const authUrl = `https://www.dropbox.com/oauth2/authorize` +
+    `?client_id=${DROPBOX_APP_KEY}` +
+    `&response_type=token` +
+    `&redirect_uri=${encodeURIComponent(DROPBOX_REDIRECT)}` +
+    `&token_access_type=legacy`;
+  window.location.href = authUrl;
+}
+
+function disconnectDropbox() {
+  _dbxToken = null;
+  localStorage.removeItem(DROPBOX_TOKEN_KEY);
+  localStorage.removeItem(DROPBOX_ACCT_KEY);
+  _updateDropboxUI();
+  showToast('Dropbox disconnected');
+}
+
+async function _fetchDropboxAccount() {
+  if (!_dbxToken) return;
+  try {
+    const r = await fetch('https://api.dropboxapi.com/2/users/get_current_account', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + _dbxToken }
+    });
+    if (r.status === 401) { disconnectDropbox(); return; }
+    const data = await r.json();
+    const name = data.name?.display_name || 'Dropbox';
+    localStorage.setItem(DROPBOX_ACCT_KEY, name);
+    const el = document.getElementById('dropbox-account-label');
+    if (el) el.textContent = '📦 ' + name;
+  } catch(e) {}
+}
+
+function _updateDropboxUI() {
+  const connectBtn  = document.getElementById('dropbox-connect-btn');
+  const scanRow     = document.getElementById('dropbox-scan-row');
+  const statusLabel = document.getElementById('dropbox-status-label');
+  const acctLabel   = document.getElementById('dropbox-account-label');
+  if (_dbxToken) {
+    if (connectBtn)  connectBtn.style.display = 'none';
+    if (scanRow)     scanRow.style.display    = 'block';
+    if (statusLabel) statusLabel.textContent  = 'Dropbox connected ✓';
+    const stored = localStorage.getItem(DROPBOX_ACCT_KEY);
+    if (acctLabel && stored) acctLabel.textContent = '📦 ' + stored;
+  } else {
+    if (connectBtn)  connectBtn.style.display = '';
+    if (scanRow)     scanRow.style.display    = 'none';
+    if (statusLabel) statusLabel.textContent  = 'Connect Dropbox to sync your ROMs';
+  }
+}
+
+async function scanDropboxForROMs() {
+  if (!_dbxToken) return;
+  const statusEl = document.getElementById('dropbox-scan-status');
+  const btn      = document.getElementById('dropbox-scan-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
+  if (statusEl) statusEl.textContent = 'Scanning your Dropbox…';
+  try {
+    const files = await _listDropboxFiles('');
+    const roms  = files.filter(f =>
+      f['.tag'] === 'file' &&
+      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext))
+    );
+    if (roms.length === 0) {
+      if (statusEl) statusEl.textContent = 'No ROM files found';
+      showToast('No ROMs found — add ROM files to your Dropbox');
+      if (btn) { btn.disabled = false; btn.textContent = 'Scan for ROMs'; }
+      return;
+    }
+    let added = 0;
+    for (const rom of roms) {
+      const ext      = '.' + rom.name.split('.').pop().toLowerCase();
+      const system   = _extToSystem(ext);
+      const core     = _systemToCore(system);
+      const gameName = rom.name.replace(/\.[^/.]+$/, '');
+      const id       = makeId(gameName, core);
+      const existing = await dbGet(META_STORE, id).catch(() => null);
+      if (!existing) {
+        await dbPut(META_STORE, {
+          id, name: gameName, core, sysLabel: system,
+          addedAt: Date.now(), playCount: 0, lastPlayed: null,
+          favourite: false, playTimeSecs: 0,
+          romPointer: { provider: 'dropbox', path: rom.path_lower, id: rom.id },
+          romInOpfs: false, opfsFilename: null,
+        });
+        added++;
+      }
+    }
+    if (statusEl) statusEl.textContent = `Found ${roms.length} ROMs — ${added} added`;
+    showToast(`📚 ${added} ROMs added from Dropbox`);
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan for ROMs'; }
+    if (typeof renderLibrary === 'function') renderLibrary();
+  } catch(e) {
+    console.warn('[Dropbox] scan failed:', e);
+    if (e.message === '401') { disconnectDropbox(); return; }
+    if (statusEl) statusEl.textContent = 'Scan failed — check connection';
+    showToast('Dropbox scan failed');
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan for ROMs'; }
+  }
+}
+
+async function _listDropboxFiles(path) {
+  const results = [];
+  let cursor = null, hasMore = true;
+  while (hasMore) {
+    let r;
+    if (!cursor) {
+      r = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _dbxToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path || '', recursive: true, limit: 2000 })
+      });
+    } else {
+      r = await fetch('https://api.dropboxapi.com/2/files/list_folder/continue', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _dbxToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cursor })
+      });
+    }
+    if (r.status === 401) throw new Error('401');
+    const body = await r.json();
+    results.push(...(body.entries || []));
+    hasMore = body.has_more;
+    cursor  = body.cursor;
+  }
+  return results;
+}
+
+async function downloadFromDropbox(path) {
+  if (!_dbxToken) throw new Error('Not connected to Dropbox');
+  const r = await fetch('https://content.dropboxapi.com/2/files/download', {
+    method: 'POST',
+    headers: {
+      'Authorization':   'Bearer ' + _dbxToken,
+      'Dropbox-API-Arg': JSON.stringify({ path }),
+    }
+  });
+  if (r.status === 401) { disconnectDropbox(); throw new Error('Dropbox token expired — reconnect in Sign In tab'); }
+  if (!r.ok) throw new Error('Download failed (' + r.status + ')');
+  return await r.blob();
+}
+
+async function uploadSaveToDropbox(filename, data) {
+  if (!_dbxToken) return;
+  const blob = data instanceof Uint8Array
+    ? new Blob([data], { type: 'application/octet-stream' })
+    : new Blob([data], { type: 'application/octet-stream' });
+  try {
+    await fetch('https://content.dropboxapi.com/2/files/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization':   'Bearer ' + _dbxToken,
+        'Content-Type':    'application/octet-stream',
+        'Dropbox-API-Arg': JSON.stringify({
+          path: '/ROM Player Saves/' + filename,
+          mode: 'overwrite', autorename: false
+        })
+      },
+      body: blob
+    });
+  } catch(e) { console.warn('[Dropbox] save upload failed:', e); }
+}
+
+function _extToSystem(ext) {
+  const map = {
+    '.nes':'NES','.snes':'SNES','.smc':'SNES','.sfc':'SNES',
+    '.gba':'GBA','.gbc':'GBC','.gb':'GB',
+    '.n64':'N64','.z64':'N64','.v64':'N64',
+    '.nds':'NDS','.gen':'Genesis','.md':'Genesis','.smd':'Genesis',
+    '.iso':'PS1','.bin':'PS1','.cue':'PS1','.chd':'PS1',
+    '.pbp':'PSP','.gg':'Game Gear','.sms':'Master System',
+    '.pce':'PC Engine','.32x':'32X',
+    '.ngp':'Neo Geo Pocket','.ngc':'Neo Geo Pocket Color',
+    '.ws':'WonderSwan','.wsc':'WonderSwan Color',
+    '.a26':'Atari 2600','.lnx':'Atari Lynx','.jag':'Jaguar'
+  };
+  return map[ext] || 'Unknown';
+}
+
+function _systemToCore(system) {
+  const map = {
+    'NES':'nes','SNES':'snes','GBA':'gba','GBC':'gambatte','GB':'gambatte',
+    'N64':'n64','NDS':'nds','Genesis':'genesis_plus_gx','PS1':'pcsx_rearmed',
+    'PSP':'ppsspp','Game Gear':'genesis_plus_gx','Master System':'genesis_plus_gx',
+    'PC Engine':'mednafen_pce','32X':'picodrive',
+    'Neo Geo Pocket':'mednafen_ngp','Neo Geo Pocket Color':'mednafen_ngp',
+    'WonderSwan':'mednafen_wswan','WonderSwan Color':'mednafen_wswan',
+    'Atari 2600':'stella','Atari Lynx':'mednafen_lynx','Jaguar':'virtualjaguar'
+  };
+  return map[system] || 'unknown';
+}
+
+initDropbox();
+// ══════════════════════════════════════════════════════════════
 const _origOpenSettingsFinal = openSettings;
 window.openSettings = function() {
   _origOpenSettingsFinal();
