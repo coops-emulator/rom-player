@@ -13,7 +13,7 @@
      load, offline forever after)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260729120704';
+const CACHE_VERSION = 'rp-20260729213852';
 
 // App shell — cached immediately on install
 const PRECACHE = [
