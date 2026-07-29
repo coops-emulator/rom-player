@@ -13,10 +13,11 @@
      load, offline forever after)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260729115849';
+const CACHE_VERSION = 'rp-20260729120704';
 
 // App shell — cached immediately on install
 const PRECACHE = [
+  './',
   './index.html',
   './manifest.json',
   './icon-180.png',
@@ -62,7 +63,6 @@ self.addEventListener('activate', event => {
         keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
-      .then(() => warmupCache())
   );
 });
 
@@ -75,10 +75,13 @@ self.addEventListener('fetch', event => {
   // Skip APIs we never cache
   if (SKIP_CACHE_HOSTS.some(h => url.hostname.includes(h))) return;
 
-  const isNetworkFirst =
-    event.request.mode === 'navigate' ||
-    NETWORK_FIRST.some(name => url.pathname.endsWith(name));
+  // Always networkFirst for page navigations
+  if (event.request.mode === 'navigate') {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
 
+  const isNetworkFirst = NETWORK_FIRST.some(name => url.pathname.endsWith(name));
   event.respondWith(isNetworkFirst ? networkFirst(event.request) : cacheFirst(event.request));
 });
 
@@ -102,10 +105,16 @@ async function networkFirst(request) {
     return response;
   } catch (err) {
     clearTimeout(timeoutId);
+    // Try exact match first
     const cached = await caches.match(request);
     if (cached) return cached;
+    // For any navigation (page load), serve index.html from cache
     if (request.mode === 'navigate') {
-      const fallback = await caches.match('./index.html');
+      const fallback =
+        await caches.match('./index.html') ||
+        await caches.match('./') ||
+        await caches.match('/index.html') ||
+        await caches.match('/');
       if (fallback) return fallback;
     }
     throw err;
@@ -120,38 +129,17 @@ async function cacheFirst(request) {
 
   try {
     const response = await fetch(request);
-    // Cache successful responses and opaque responses (cross-origin)
     if (response.ok || response.type === 'opaque') {
       const cache = await caches.open(CACHE_VERSION);
-      // Clone before caching — response body can only be consumed once
-      await cache.put(request, response.clone());
+      cache.put(request, response.clone());
     }
     return response;
   } catch (err) {
-    // Truly offline and not cached — try index.html as fallback for navigation
     if (request.mode === 'navigate') {
       const fallback = await caches.match('./index.html');
       if (fallback) return fallback;
     }
     throw err;
-  }
-}
-
-// ── Precache warmup on activate ───────────────────
-// After activation, proactively cache any PRECACHE items
-// that failed during install (e.g. CDN timeout on first visit)
-async function warmupCache() {
-  const cache = await caches.open(CACHE_VERSION);
-  const existing = await cache.keys();
-  const existingUrls = existing.map(r => r.url);
-  const missing = PRECACHE.filter(url => {
-    const abs = url.startsWith('http') ? url : self.registration.scope + url.replace('./', '');
-    return !existingUrls.some(e => e === abs || e === url);
-  });
-  if (missing.length > 0) {
-    await Promise.allSettled(
-      missing.map(url => cache.add(url).catch(e => console.warn('[SW] Warmup failed:', url, e)))
-    );
   }
 }
 
