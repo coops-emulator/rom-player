@@ -13,7 +13,7 @@
      load, offline forever after)
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260729070202';
+const CACHE_VERSION = 'rp-20260729115849';
 
 // App shell — cached immediately on install
 const PRECACHE = [
@@ -62,6 +62,7 @@ self.addEventListener('activate', event => {
         keys.filter(k => k !== CACHE_VERSION).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
+      .then(() => warmupCache())
   );
 });
 
@@ -119,17 +120,38 @@ async function cacheFirst(request) {
 
   try {
     const response = await fetch(request);
+    // Cache successful responses and opaque responses (cross-origin)
     if (response.ok || response.type === 'opaque') {
       const cache = await caches.open(CACHE_VERSION);
-      cache.put(request, response.clone());
+      // Clone before caching — response body can only be consumed once
+      await cache.put(request, response.clone());
     }
     return response;
   } catch (err) {
+    // Truly offline and not cached — try index.html as fallback for navigation
     if (request.mode === 'navigate') {
       const fallback = await caches.match('./index.html');
       if (fallback) return fallback;
     }
     throw err;
+  }
+}
+
+// ── Precache warmup on activate ───────────────────
+// After activation, proactively cache any PRECACHE items
+// that failed during install (e.g. CDN timeout on first visit)
+async function warmupCache() {
+  const cache = await caches.open(CACHE_VERSION);
+  const existing = await cache.keys();
+  const existingUrls = existing.map(r => r.url);
+  const missing = PRECACHE.filter(url => {
+    const abs = url.startsWith('http') ? url : self.registration.scope + url.replace('./', '');
+    return !existingUrls.some(e => e === abs || e === url);
+  });
+  if (missing.length > 0) {
+    await Promise.allSettled(
+      missing.map(url => cache.add(url).catch(e => console.warn('[SW] Warmup failed:', url, e)))
+    );
   }
 }
 
