@@ -117,4 +117,14 @@ Version timestamps are generated at deploy time (`YYYYMMDDHHMMSS` UTC) and writt
 
 ---
 
+## Legal
+
+ROM Player by Coops is an independent emulator project. It is not affiliated with, authorized, endorsed, or sponsored by Nintendo, Sony, Sega, SNK, Atari, NEC, Bandai, or any other hardware manufacturer or rights holder. All trademarks, system names, and brand names are the property of their respective owners.
+
+ROM Player does not distribute, host, or facilitate the downloading of copyrighted ROM or BIOS files. Users are solely responsible for ensuring they have the legal right to use any software they load into the emulator.
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
+
+---
+
 *Built by [Coops](https://github.com/coops-emulator)*
