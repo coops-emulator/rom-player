@@ -1,28 +1,12 @@
-# ══════════════════════════════════════════════════
-# ROM Player by Coops — Cloudflare Pages headers
-#
-# CRITICAL: sw.js and version.json must never be
-# cached by Cloudflare or the browser, or version
-# bumps silently fail and users get stale PWA builds.
-# ══════════════════════════════════════════════════
-
-# Service worker — must always be fresh
 /sw.js
-  Cache-Control: no-store, no-cache, must-revalidate
-  Pragma: no-cache
+  Cache-Control: no-cache, no-store, must-revalidate
+  Service-Worker-Allowed: /
 
-# Version manifest — network-first polling depends on this
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /version.json
-  Cache-Control: no-store, no-cache, must-revalidate
-  Pragma: no-cache
+  Cache-Control: no-cache, no-store, must-revalidate
 
-# HTML — short cache, always revalidate
-/*.html
-  Cache-Control: no-cache, must-revalidate
-
-# Static assets — long cache (versioned via SW cache key)
-/icon-*.png
+/*
   Cache-Control: public, max-age=31536000, immutable
-
-/manifest.json
-  Cache-Control: public, max-age=86400
