@@ -1543,7 +1543,7 @@ body.game-active .wrap {
     <div class="home-tabs">
       <button class="htab on" onclick="showHomeTab(this,'tab-load')">▶ Play</button>
       <button class="htab" onclick="showHomeTab(this,'tab-lib')">📚 Library</button>
-      <button class="htab" onclick="showHomeTab(this,'tab-rx')">🔄 ROM Exchange</button>
+      <button class="htab" onclick="showHomeTab(this,'tab-rx')">🔄 Linkup Room</button>
     </div>
 
     <!-- Play tab -->
@@ -1592,14 +1592,14 @@ body.game-active .wrap {
         </div>
         <div class="lib-empty">
           <span class="big">🔄</span>
-          Share ROMs with up to 3 friends.<br>Create a room, share the code — everyone can upload and download.<br>Transfers are peer-to-peer, nothing stored on any server.
+          Link up with up to 3 friends.<br>Create a room, share the code — everyone can stream and share data.<br>Transfers are peer-to-peer, nothing stored on any server.
         </div>
       </div>
       <div id="rx-room" style="display:none">
         <div class="rx-room">
           <div class="rx-room-hdr">
             <div>
-              <div class="rx-room-title" id="rx-room-title">ROM Exchange Room</div>
+              <div class="rx-room-title" id="rx-room-title">Linkup Room</div>
               <div class="rx-room-sub" id="rx-room-sub">0 of 4 members</div>
             </div>
             <div class="rx-code-badge" id="rx-code-badge" onclick="rxCopyCode()" title="Click to copy">——</div>
@@ -1608,14 +1608,14 @@ body.game-active .wrap {
           <div class="rx-members" id="rx-members"></div>
           <div class="rx-upload-bar">
             <button class="rx-btn accent" style="flex:1" onclick="document.getElementById('rx-file-inp').click()">
-              + Share a ROM from your device
+              + Share a file from your device
             </button>
             <button class="rx-btn" onclick="rxShareFromLibrary()">Share from Library</button>
             <input type="file" id="rx-file-inp" style="display:none"
               accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
           </div>
           <div id="rx-grid-wrap">
-            <div class="rx-empty" id="rx-empty">No ROMs shared yet — be the first to share one!</div>
+            <div class="rx-empty" id="rx-empty">No files shared yet — be the first to share one!</div>
             <div class="rx-grid" id="rx-grid" style="display:none"></div>
           </div>
 
@@ -1627,6 +1627,11 @@ body.game-active .wrap {
               <input class="rx-chat-input" id="rx-chat-input" placeholder="Say something…" maxlength="200"
                 onkeydown="if(event.key==='Enter')rxSendChat()">
               <button class="rx-btn accent" onclick="rxSendChat()">Send</button>
+            </div>
+            <div style="text-align:center;margin-top:8px">
+              <span onclick="document.getElementById('linkup-disclaimer-modal').style.display='flex'"
+                style="opacity:0.5;font-size:11px;text-decoration:underline;cursor:pointer;transition:opacity 0.2s"
+                onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='0.5'">ℹ️ Linkup Room Policy & Disclaimer</span>
             </div>
           </div>
         </div>
@@ -1780,7 +1785,7 @@ body.game-active .wrap {
         <div class="settings-app-row">
           <div class="settings-app-info" style="flex:1">
             <div class="settings-app-label">Username</div>
-            <div class="settings-app-sub">Shown to others in ROM Exchange rooms and chat</div>
+            <div class="settings-app-sub">Shown to others in Linkup Room and chat</div>
             <input class="settings-input" id="username-input" type="text" maxlength="20"
               placeholder="Player1234" style="width:100%;margin-top:8px"
               onkeydown="if(event.key==='Enter')saveUsernameFromSettings()">
@@ -1812,12 +1817,12 @@ body.game-active .wrap {
       <!-- Themes -->
       <div class="settings-section" style="margin-top:28px">
         <div class="settings-section-title">🎮 System BIOS</div>
-        <div class="note" style="margin-bottom:12px">Some systems need a BIOS file to run games. Upload yours once — it's saved permanently and never asked again. <strong>Required</strong> systems won't run without one.</div>
+        <div class="note" style="margin-bottom:12px">Some systems need a BIOS file to run games. Upload yours once — it's saved permanently and never asked again. <strong>Required</strong> systems won't run without one. <strong>Optional (Recommended)</strong> systems work without a BIOS but perform better with one.</div>
 
         <!-- PS1 -->
         <div class="bios-row" id="bios-row-psx">
           <div class="bios-info">
-            <div class="bios-label">PlayStation 1 <span class="bios-required">Required</span></div>
+            <div class="bios-label">PlayStation 1 <span class="bios-optional">Optional (Recommended)</span></div>
             <div class="bios-sub" id="bios-status-psx">Checking…</div>
           </div>
           <div class="bios-actions">
@@ -2551,7 +2556,7 @@ const BIOS_CORES = {
     label: 'PlayStation 1',
     filename: 'bios_psx.bin',
     hint: 'scph1001.bin, scph5500.bin, scph5501.bin or scph5502.bin (any region)',
-    required: true,
+    required: false,
   },
   segaCD: {
     label: 'Sega CD',
@@ -3471,7 +3476,7 @@ document.getElementById('relaunch-modal').addEventListener('click', function(e) 
 
 /* ══ ROM EXCHANGE ════════════════════════════════════
    P2P room: host creates code, up to 4 peers join.
-   Anyone can share ROMs from device or library.
+   Anyone can share files from device or library.
    Files transfer directly peer-to-peer in chunks.
    Recipients can download to their local library.
 ═══════════════════════════════════════════════════ */
@@ -3880,7 +3885,7 @@ function rxShowRoom(code) {
   document.getElementById('rx-lobby').style.display = 'none';
   document.getElementById('rx-room').style.display = 'block';
   document.getElementById('rx-code-badge').textContent = code;
-  document.getElementById('rx-room-title').textContent = _rx.isHost ? 'Your Room' : 'ROM Exchange Room';
+  document.getElementById('rx-room-title').textContent = _rx.isHost ? 'Your Room' : 'Linkup Room';
   rxRenderMembers();
   rxRenderGrid();
 }
@@ -4917,8 +4922,8 @@ const TUTORIAL_PAGES = [
       <div class="tutorial-step">
         <div class="tutorial-step-num">3</div>
         <div class="tutorial-step-body">
-          <strong>ROM Exchange</strong>
-          <span>Share ROMs and play with friends in real time using the 🔄 ROM Exchange tab. Host a room and share your code.</span>
+          <strong>Linkup Room</strong>
+          <span>Link up with friends in real time using the 🔄 Linkup Room tab. Host a room, share the code, and transfer files peer-to-peer — nothing stored on any server.</span>
         </div>
       </div>`
   },
@@ -5018,7 +5023,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260731030000';
+const APP_VERSION = '20260731072142';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5056,7 +5061,7 @@ const CHANGELOG_ITEMS = [
   '📱 iPhone fullscreen is now truly edge-to-edge in landscape — tap anywhere to reveal save/load/exit controls',
   '🎮 Controller HUD: when a gamepad is connected in fullscreen, subtle button indicators appear on each side of the screen',
   '🔄 Phone auto-enters fullscreen when you rotate to landscape while a game is running',
-  '👤 Set a custom username in Settings — shown to others in ROM Exchange rooms and chat',
+  '👤 Set a custom username in Settings — shown to others in Linkup Room and chat',
   '🔍 Search your library instantly from the Library tab',
   '⚡ Cover art now loads lazily — only fetches for games actually scrolled into view',
   '💾 Export or import your library (play time, favourites, settings) as a backup file',
@@ -5790,5 +5795,20 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<!-- Linkup Room Disclaimer Modal -->
+<div id="linkup-disclaimer-modal" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)">
+  <div style="background:var(--surf);border:1px solid var(--border);border-radius:18px;padding:28px 24px;max-width:380px;width:90%;margin:0 16px">
+    <h3 style="margin:0 0 16px;font-size:16px;color:var(--text)">Linkup Room Policy</h3>
+    <div style="font-size:13px;color:var(--muted);line-height:1.7;display:flex;flex-direction:column;gap:8px">
+      <div>📡 This feature acts as a temporary P2P data transfer utility.</div>
+      <div>🚫 No files are stored, cached, or hosted on our servers.</div>
+      <div>⚖️ Sharing commercial copyrighted software is strictly prohibited.</div>
+      <div>✅ Users must only share legally owned backups or authorised open-source homebrew software.</div>
+    </div>
+    <button onclick="document.getElementById('linkup-disclaimer-modal').style.display='none'"
+      class="rx-btn accent" style="width:100%;margin-top:20px;padding:12px">I Understand</button>
+  </div>
+</div>
+
 </body>
 </html>
