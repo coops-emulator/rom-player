@@ -2,15 +2,15 @@
    ROM Player by Coops — Service Worker
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260731014521';
+const CACHE_VERSION = 'rp-20260731020435';
 
 const PRECACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon-180.png',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/icon-180.png?v=20260731020435',
+  '/icon-192.png?v=20260731020435',
+  '/icon-512.png?v=20260731020435',
   'https://cdn.emulatorjs.org/stable/data/loader.js',
   'https://cdn.emulatorjs.org/stable/data/emulator.js',
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
