@@ -3320,6 +3320,13 @@ async function renderLibrary() {
   const el = document.getElementById('lib-list');
   el.innerHTML = `<div class="lib-empty"><span class="big">⏳</span>Loading…</div>`;
   try { _libEntries = await dbGetAll(META_STORE); } catch(e) { _libEntries = []; }
+  // Fix any entries where sysLabel is a raw core name (from old Dropbox scan bug)
+  for (const e of _libEntries) {
+    if (!e.sysLabel || e.sysLabel === e.core || e.sysLabel.includes('_')) {
+      e.sysLabel = _coreFriendlyLabel(e.core);
+      dbPut(META_STORE, e).catch(() => {}); // persist fix silently
+    }
+  }
   renderLibraryList();
 }
 
@@ -3670,7 +3677,7 @@ async function importLibraryFile(file) {
         merged++;
       } else {
         await dbPut(META_STORE, {
-          id, name: item.name, sysLabel: item.sysLabel || item.core.toUpperCase(), core: item.core,
+          id, name: item.name, sysLabel: item.sysLabel || _coreFriendlyLabel(item.core), core: item.core,
           lastPlayed: item.lastPlayed || Date.now(),
           playCount: item.playCount || 0,
           playTimeSecs: item.playTimeSecs || 0,
@@ -5023,7 +5030,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260731072142';
+const APP_VERSION = '20260801024523';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5534,10 +5541,12 @@ function openSubscribePage() {
 // ══════════════════════════════════════════════════════════════
 // DROPBOX INTEGRATION — Premium users only
 // ══════════════════════════════════════════════════════════════
-const DROPBOX_APP_KEY   = 'kgy1xf57bh26gsi';
-const DROPBOX_REDIRECT  = 'https://romplayerbycoops.pages.dev/';
-const DROPBOX_TOKEN_KEY = 'dbx_token';
-const DROPBOX_ACCT_KEY  = 'dbx_account';
+const DROPBOX_APP_KEY    = 'kgy1xf57bh26gsi';
+const DROPBOX_REDIRECT   = 'https://romplayerbycoops.pages.dev/';
+const DROPBOX_TOKEN_KEY  = 'dbx_token';
+const DROPBOX_REFRESH_KEY = 'dbx_refresh';
+const DROPBOX_ACCT_KEY   = 'dbx_account';
+const DROPBOX_EXPIRY_KEY  = 'dbx_expiry';
 
 const ROM_EXTENSIONS = [
   '.nes','.snes','.smc','.sfc','.gba','.gbc','.gb',
@@ -5549,56 +5558,132 @@ const ROM_EXTENSIONS = [
 
 let _dbxToken = null;
 
-function initDropbox() {
-  // Check if returning from OAuth
-  const hash = window.location.hash;
-  if (hash && hash.includes('access_token=')) {
-    const params = new URLSearchParams(hash.replace('#', '?'));
-    const token = params.get('access_token');
-    if (token) {
-      _dbxToken = token;
-      localStorage.setItem(DROPBOX_TOKEN_KEY, token);
-      history.replaceState(null, '', window.location.pathname);
-      showToast('✅ Dropbox connected!');
-      _updateDropboxUI();
-      _fetchDropboxAccount();
-      return;
-    }
+// ── PKCE helpers ──────────────────────────────────
+function _generateCodeVerifier() {
+  const arr = new Uint8Array(48);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function _generateCodeChallenge(verifier) {
+  const enc = new TextEncoder().encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', enc);
+  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function initDropbox() {
+  // PKCE callback — code in URL search params
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  if (code && state && state === localStorage.getItem('dbx_state')) {
+    history.replaceState(null, '', window.location.pathname);
+    const verifier = localStorage.getItem('dbx_verifier');
+    localStorage.removeItem('dbx_state');
+    localStorage.removeItem('dbx_verifier');
+    if (verifier) { await _exchangeCodeForToken(code, verifier); return; }
   }
   const stored = localStorage.getItem(DROPBOX_TOKEN_KEY);
   if (stored) {
     _dbxToken = stored;
+    const expiry = parseInt(localStorage.getItem(DROPBOX_EXPIRY_KEY) || '0');
+    if (expiry && Date.now() > expiry - 60000) await _refreshDropboxToken();
     _updateDropboxUI();
     _fetchDropboxAccount();
   }
 }
 
-function connectDropbox() {
+async function _exchangeCodeForToken(code, verifier) {
+  try {
+    const r = await fetch('https://api.dropbox.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code, grant_type: 'authorization_code',
+        client_id: DROPBOX_APP_KEY,
+        redirect_uri: DROPBOX_REDIRECT,
+        code_verifier: verifier,
+      })
+    });
+    const data = await r.json();
+    if (data.access_token) {
+      _dbxToken = data.access_token;
+      localStorage.setItem(DROPBOX_TOKEN_KEY, data.access_token);
+      if (data.refresh_token) localStorage.setItem(DROPBOX_REFRESH_KEY, data.refresh_token);
+      if (data.expires_in) localStorage.setItem(DROPBOX_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
+      showToast('✅ Dropbox connected!');
+      _updateDropboxUI();
+      _fetchDropboxAccount();
+    } else {
+      showToast('❌ Dropbox connection failed — try again');
+    }
+  } catch(e) { console.warn('[Dropbox] token exchange failed:', e); showToast('❌ Dropbox connection failed'); }
+}
+
+async function _refreshDropboxToken() {
+  const refreshToken = localStorage.getItem(DROPBOX_REFRESH_KEY);
+  if (!refreshToken) { disconnectDropbox(); return; }
+  try {
+    const r = await fetch('https://api.dropbox.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: DROPBOX_APP_KEY,
+      })
+    });
+    const data = await r.json();
+    if (data.access_token) {
+      _dbxToken = data.access_token;
+      localStorage.setItem(DROPBOX_TOKEN_KEY, data.access_token);
+      if (data.expires_in) localStorage.setItem(DROPBOX_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
+    } else {
+      disconnectDropbox();
+      showToast('Dropbox session expired — please reconnect');
+    }
+  } catch(e) { console.warn('[Dropbox] refresh failed:', e); }
+}
+
+async function _ensureDropboxToken() {
+  if (!_dbxToken) return false;
+  const expiry = parseInt(localStorage.getItem(DROPBOX_EXPIRY_KEY) || '0');
+  if (expiry && Date.now() > expiry - 60000) await _refreshDropboxToken();
+  return !!_dbxToken;
+}
+
+async function connectDropbox() {
   if (!_isPremium) { showToast('Premium required to connect Dropbox'); return; }
+  const verifier = _generateCodeVerifier();
+  const challenge = await _generateCodeChallenge(verifier);
+  const state = _generateCodeVerifier().slice(0, 16);
+  localStorage.setItem('dbx_verifier', verifier);
+  localStorage.setItem('dbx_state', state);
   const authUrl = `https://www.dropbox.com/oauth2/authorize` +
     `?client_id=${DROPBOX_APP_KEY}` +
-    `&response_type=token` +
+    `&response_type=code` +
     `&redirect_uri=${encodeURIComponent(DROPBOX_REDIRECT)}` +
-    `&token_access_type=legacy`;
+    `&code_challenge=${challenge}` +
+    `&code_challenge_method=S256` +
+    `&token_access_type=offline` +
+    `&state=${state}`;
   window.location.href = authUrl;
 }
 
 function disconnectDropbox() {
   _dbxToken = null;
-  localStorage.removeItem(DROPBOX_TOKEN_KEY);
-  localStorage.removeItem(DROPBOX_ACCT_KEY);
+  ['dbx_token','dbx_refresh','dbx_account','dbx_expiry','dbx_state','dbx_verifier'].forEach(k => localStorage.removeItem(k));
   _updateDropboxUI();
   showToast('Dropbox disconnected');
 }
 
 async function _fetchDropboxAccount() {
-  if (!_dbxToken) return;
+  if (!await _ensureDropboxToken()) return;
   try {
     const r = await fetch('https://api.dropboxapi.com/2/users/get_current_account', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + _dbxToken }
     });
-    if (r.status === 401) { disconnectDropbox(); return; }
+    if (r.status === 401) { await _refreshDropboxToken(); return; }
     const data = await r.json();
     const name = data.name?.display_name || 'Dropbox';
     localStorage.setItem(DROPBOX_ACCT_KEY, name);
@@ -5626,7 +5711,7 @@ function _updateDropboxUI() {
 }
 
 async function scanDropboxForROMs() {
-  if (!_dbxToken) return;
+  if (!await _ensureDropboxToken()) { showToast('Reconnect Dropbox in Sign In tab'); return; }
   const statusEl = document.getElementById('dropbox-scan-status');
   const btn      = document.getElementById('dropbox-scan-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
@@ -5693,7 +5778,7 @@ async function _listDropboxFiles(path) {
         body: JSON.stringify({ cursor })
       });
     }
-    if (r.status === 401) throw new Error('401');
+    if (r.status === 401) { await _refreshDropboxToken(); throw new Error('401'); }
     const body = await r.json();
     results.push(...(body.entries || []));
     hasMore = body.has_more;
@@ -5703,7 +5788,7 @@ async function _listDropboxFiles(path) {
 }
 
 async function downloadFromDropbox(path) {
-  if (!_dbxToken) throw new Error('Not connected to Dropbox');
+  if (!await _ensureDropboxToken()) throw new Error('Not connected to Dropbox');
   const r = await fetch('https://content.dropboxapi.com/2/files/download', {
     method: 'POST',
     headers: {
@@ -5711,13 +5796,17 @@ async function downloadFromDropbox(path) {
       'Dropbox-API-Arg': JSON.stringify({ path }),
     }
   });
-  if (r.status === 401) { disconnectDropbox(); throw new Error('Dropbox token expired — reconnect in Sign In tab'); }
+  if (r.status === 401) {
+    await _refreshDropboxToken();
+    if (!_dbxToken) throw new Error('Dropbox session expired — reconnect in Sign In tab');
+    return downloadFromDropbox(path);
+  }
   if (!r.ok) throw new Error('Download failed (' + r.status + ')');
   return await r.blob();
 }
 
 async function uploadSaveToDropbox(filename, data) {
-  if (!_dbxToken) return;
+  if (!await _ensureDropboxToken()) return;
   const blob = data instanceof Uint8Array
     ? new Blob([data], { type: 'application/octet-stream' })
     : new Blob([data], { type: 'application/octet-stream' });
@@ -5754,16 +5843,40 @@ function _extToSystem(ext) {
 }
 
 function _systemToCore(system) {
+  // Core names must match the SYS map exactly (segaMD, psx, segaGG etc.)
   const map = {
     'NES':'nes','SNES':'snes','GBA':'gba','GBC':'gambatte','GB':'gambatte',
-    'N64':'n64','NDS':'nds','Genesis':'genesis_plus_gx','PS1':'pcsx_rearmed',
-    'PSP':'ppsspp','Game Gear':'genesis_plus_gx','Master System':'genesis_plus_gx',
-    'PC Engine':'mednafen_pce','32X':'picodrive',
-    'Neo Geo Pocket':'mednafen_ngp','Neo Geo Pocket Color':'mednafen_ngp',
-    'WonderSwan':'mednafen_wswan','WonderSwan Color':'mednafen_wswan',
-    'Atari 2600':'stella','Atari Lynx':'mednafen_lynx','Jaguar':'virtualjaguar'
+    'N64':'n64','NDS':'nds',
+    'Genesis':'segaMD','PS1':'psx','PSP':'ppsspp',
+    'Game Gear':'segaGG','Master System':'segaMS',
+    'PC Engine':'pce','Sega 32X':'sega32x','32X':'sega32x',
+    'Neo Geo Pocket':'ngp','Neo Geo Pocket Color':'ngp',
+    'WonderSwan':'ws','WonderSwan Color':'wsc',
+    'Atari 2600':'a2600','Atari Lynx':'lynx','Jaguar':'jaguar'
   };
   return map[system] || 'unknown';
+}
+
+// ── Convert core name → friendly display label ────
+// Used as fallback when sysLabel is missing or is a raw core name
+function _coreFriendlyLabel(core) {
+  const map = {
+    'nes':'NES','snes':'SNES','gba':'GBA','gambatte':'Game Boy',
+    'gb':'Game Boy','gbc':'GBC','n64':'N64','nds':'NDS',
+    'segaMD':'Genesis','psx':'PS1','ppsspp':'PSP',
+    'segaGG':'Game Gear','segaMS':'Master System',
+    'pce':'PC Engine','sega32x':'Sega 32X',
+    'ngp':'Neo Geo Pocket','ws':'WonderSwan','wsc':'WonderSwan Color',
+    'a2600':'Atari 2600','lynx':'Atari Lynx','jaguar':'Jaguar',
+    'coleco':'ColecoVision','intellivision':'Intellivision','vectrex':'Vectrex',
+    'saturn':'Saturn','segaCD':'Sega CD','vb':'Virtual Boy',
+    // Fix old wrong core names from previous Dropbox scan bug
+    'genesis_plus_gx':'Genesis','pcsx_rearmed':'PS1',
+    'mednafen_pce':'PC Engine','mednafen_ngp':'Neo Geo Pocket',
+    'mednafen_wswan':'WonderSwan','mednafen_lynx':'Atari Lynx',
+    'virtualjaguar':'Jaguar','stella':'Atari 2600','picodrive':'Sega 32X',
+  };
+  return map[core] || core;
 }
 
 initDropbox();
