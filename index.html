@@ -5030,7 +5030,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260801034916';
+const APP_VERSION = '20260801040412';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5580,15 +5580,23 @@ async function initDropbox() {
     const verifier = localStorage.getItem('dbx_verifier');
     localStorage.removeItem('dbx_state');
     localStorage.removeItem('dbx_verifier');
-    if (verifier) { await _exchangeCodeForToken(code, verifier); return; }
+    if (verifier) {
+      await _exchangeCodeForToken(code, verifier);
+      // _exchangeCodeForToken calls _updateDropboxUI on success
+      return;
+    }
   }
   const stored = localStorage.getItem(DROPBOX_TOKEN_KEY);
   if (stored) {
     _dbxToken = stored;
     const expiry = parseInt(localStorage.getItem(DROPBOX_EXPIRY_KEY) || '0');
-    if (expiry && Date.now() > expiry - 60000) await _refreshDropboxToken();
+    // Refresh first if expired — do this before updating UI so we never
+    // show "connected" with a token that's about to fail on first use
+    if (expiry && Date.now() > expiry - 60000) {
+      await _refreshDropboxToken();
+    }
     _updateDropboxUI();
-    _fetchDropboxAccount();
+    if (_dbxToken) _fetchDropboxAccount();
   }
 }
 
@@ -5629,6 +5637,7 @@ async function _refreshDropboxToken() {
       _dbxToken = data.access_token;
       localStorage.setItem(DROPBOX_TOKEN_KEY, data.access_token);
       if (data.expires_in) localStorage.setItem(DROPBOX_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
+      _updateDropboxUI();   // keep UI in sync after silent refresh
     } else {
       disconnectDropbox();
       showToast('Dropbox session expired — please reconnect');
@@ -5637,7 +5646,15 @@ async function _refreshDropboxToken() {
 }
 
 async function _ensureDropboxToken() {
-  if (!_dbxToken) return false;
+  // If we have no in-memory token but a refresh token exists (e.g. page was
+  // hard-reloaded and initDropbox hasn't run yet, or access token was cleared),
+  // attempt a silent refresh before giving up.
+  if (!_dbxToken) {
+    if (localStorage.getItem(DROPBOX_REFRESH_KEY)) {
+      await _refreshDropboxToken();
+    }
+    if (!_dbxToken) return false;
+  }
   const expiry = parseInt(localStorage.getItem(DROPBOX_EXPIRY_KEY) || '0');
   if (expiry && Date.now() > expiry - 60000) await _refreshDropboxToken();
   return !!_dbxToken;

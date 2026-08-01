@@ -2,7 +2,7 @@
    ROM Player by Coops — Service Worker
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260801034916';
+const CACHE_VERSION = 'rp-20260801040412';
 
 const PRECACHE = [
   '/',
@@ -51,17 +51,26 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (SKIP_CACHE_HOSTS.some(h => url.hostname.includes(h))) return;
 
-  // Navigation requests — always try network first, fall back to cached index.html
+  // Navigation requests — always try network first, fall back to cached index.html.
+  // OAuth callbacks land here as /?code=…&state=… — we must NOT cache those URLs
+  // or serve stale index.html in their place, otherwise the query params are lost
+  // before initDropbox() can read them.
   if (event.request.mode === 'navigate') {
+    const isOAuthCallback = url.searchParams.has('code') && url.searchParams.has('state');
     event.respondWith(
       fetch(event.request).then(response => {
-        if (response.ok) {
+        // Only cache plain navigations — never cache OAuth callback URLs
+        if (response.ok && !isOAuthCallback) {
           const clone = response.clone();
           caches.open(CACHE_VERSION).then(cache => cache.put(event.request, clone));
         }
         return response;
       }).catch(async () => {
-        // Offline — serve index.html from cache
+        // Offline — serve index.html from cache (but not for OAuth callbacks —
+        // if we're offline during a callback the exchange will fail anyway)
+        if (isOAuthCallback) {
+          return new Response('Offline — cannot complete Dropbox login', { status: 503 });
+        }
         const cached =
           await caches.match('/index.html') ||
           await caches.match('/') ||
