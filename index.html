@@ -5030,7 +5030,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260801024523';
+const APP_VERSION = '20260801034916';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5594,18 +5594,13 @@ async function initDropbox() {
 
 async function _exchangeCodeForToken(code, verifier) {
   try {
-    const r = await fetch('https://api.dropbox.com/oauth2/token', {
+    const r = await fetch('/functions/dropbox-auth', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code, grant_type: 'authorization_code',
-        client_id: DROPBOX_APP_KEY,
-        redirect_uri: DROPBOX_REDIRECT,
-        code_verifier: verifier,
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'exchange', code, verifier })
     });
     const data = await r.json();
-    if (data.access_token) {
+    if (r.ok && data.access_token) {
       _dbxToken = data.access_token;
       localStorage.setItem(DROPBOX_TOKEN_KEY, data.access_token);
       if (data.refresh_token) localStorage.setItem(DROPBOX_REFRESH_KEY, data.refresh_token);
@@ -5615,6 +5610,7 @@ async function _exchangeCodeForToken(code, verifier) {
       _fetchDropboxAccount();
     } else {
       showToast('❌ Dropbox connection failed — try again');
+      console.warn('[Dropbox] exchange failed:', data);
     }
   } catch(e) { console.warn('[Dropbox] token exchange failed:', e); showToast('❌ Dropbox connection failed'); }
 }
@@ -5623,17 +5619,13 @@ async function _refreshDropboxToken() {
   const refreshToken = localStorage.getItem(DROPBOX_REFRESH_KEY);
   if (!refreshToken) { disconnectDropbox(); return; }
   try {
-    const r = await fetch('https://api.dropbox.com/oauth2/token', {
+    const r = await fetch('/functions/dropbox-auth', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: DROPBOX_APP_KEY,
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'refresh', refresh_token: refreshToken })
     });
     const data = await r.json();
-    if (data.access_token) {
+    if (r.ok && data.access_token) {
       _dbxToken = data.access_token;
       localStorage.setItem(DROPBOX_TOKEN_KEY, data.access_token);
       if (data.expires_in) localStorage.setItem(DROPBOX_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
