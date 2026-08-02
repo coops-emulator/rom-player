@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>ROM Player by Coops</title>
 
 <!-- PWA manifest -->
@@ -156,6 +156,53 @@
   --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* ── PREMIUM THEMES ── */
+
+/* DOOM — hell red and brimstone black */
+[data-theme="doom"] {
+  --bg:      #0d0404;
+  --surf:    #180808;
+  --surf2:   #220c0c;
+  --border:  #3d1010;
+  --text:    #f0d0c8;
+  --muted:   #a04040;
+  --dim:     #602020;
+  --accent:  #b81414;
+  --accent2: #e84040;
+  --glow:    rgba(184,20,20,.28);
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Dreamcast — orange sunrise, clean white plastic shell */
+[data-theme="dreamcast"] {
+  --bg:      #0c0c0e;
+  --surf:    #141418;
+  --surf2:   #1c1c22;
+  --border:  #2c2c38;
+  --text:    #f0eeea;
+  --muted:   #9080a0;
+  --dim:     #504060;
+  --accent:  #e87820;
+  --accent2: #f8a850;
+  --glow:    rgba(232,120,32,.22);
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Cyber Neon — synthwave midnight city grid */
+[data-theme="cyberneon"] {
+  --bg:      #060612;
+  --surf:    #0c0c22;
+  --surf2:   #121232;
+  --border:  #1e1e48;
+  --text:    #e8e0ff;
+  --muted:   #7060c8;
+  --dim:     #3a3080;
+  --accent:  #e020c0;
+  --accent2: #ff60f0;
+  --glow:    rgba(224,32,192,.26);
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
 html, body {
   height: 100%;
   background: var(--bg);
@@ -169,6 +216,7 @@ body {
   padding: calc(16px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
   min-height: 100vh;
   min-height: 100dvh; /* dynamic viewport height — accounts for Safari's collapsing toolbar */
+  touch-action: manipulation; /* kills double-tap zoom, keeps scroll and single-tap */
 }
 
 .wrap { width: 100%; max-width: 880px; }
@@ -1512,6 +1560,87 @@ body.game-active .wrap {
 
 /* Gamepad notification toast variant */
 .toast.gamepad-toast { background: var(--surf); border-color: var(--accent); }
+
+/* ── Premium lock overlay on gated UI ── */
+.premium-lock {
+  position: relative; overflow: hidden;
+}
+.premium-lock::after {
+  content: '✨ Premium'; position: absolute; inset: 0; z-index: 4;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.72); backdrop-filter: blur(3px);
+  color: var(--accent2); font-size: 13px; font-weight: 700;
+  letter-spacing: .06em; border-radius: inherit;
+  cursor: pointer; pointer-events: all;
+}
+
+/* ── Premium stats dashboard ── */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--surf2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 12px; text-align: center;
+}
+.stat-card-value { font-size: 26px; font-weight: 800; color: var(--accent2); line-height: 1; margin-bottom: 4px; }
+.stat-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.stat-game-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-game-row:last-child { border-bottom: none; }
+.stat-game-rank { font-size: 14px; font-weight: 800; color: var(--dim); width: 20px; flex-shrink: 0; }
+.stat-game-info { flex: 1; min-width: 0; }
+.stat-game-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-game-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.stat-game-bar-wrap { width: 60px; flex-shrink: 0; }
+.stat-game-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.stat-game-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+.heatmap-row { display: flex; gap: 3px; margin-bottom: 3px; flex-wrap: wrap; }
+.heatmap-cell {
+  width: 12px; height: 12px; border-radius: 2px; background: var(--surf2);
+  border: 1px solid var(--border); flex-shrink: 0;
+}
+.heatmap-cell.l1 { background: rgba(124,106,247,.3); border-color: rgba(124,106,247,.4); }
+.heatmap-cell.l2 { background: rgba(124,106,247,.55); border-color: rgba(124,106,247,.65); }
+.heatmap-cell.l3 { background: rgba(124,106,247,.8); border-color: var(--accent); }
+.heatmap-cell.l4 { background: var(--accent); border-color: var(--accent2); }
+
+/* ── Visual save state slots (premium) ── */
+.ss-slots-visual {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;
+}
+.ss-slot-v {
+  background: var(--surf2); border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; cursor: pointer; transition: border-color .15s, transform .1s;
+}
+.ss-slot-v:hover { border-color: var(--accent); transform: translateY(-1px); }
+.ss-slot-v-thumb {
+  width: 100%; aspect-ratio: 16/9; overflow: hidden; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; position: relative;
+}
+.ss-slot-v-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ss-slot-v-thumb .ss-slot-v-empty { font-size: 10px; color: var(--dim); }
+.ss-slot-v-body { padding: 6px 8px; }
+.ss-slot-v-label { font-size: 11px; font-weight: 700; color: var(--text); }
+.ss-slot-v-time { font-size: 10px; color: var(--dim); margin-top: 1px; }
+.ss-slot-v-actions { display: flex; gap: 4px; margin-top: 6px; }
+.ss-slot-v-btn {
+  flex: 1; padding: 4px 0; font-size: 11px; border-radius: 6px;
+  cursor: pointer; border: 1px solid var(--border);
+  background: var(--surf); color: var(--muted); font-family: var(--font);
+}
+.ss-slot-v-btn:hover { background: var(--border); color: var(--text); }
+.ss-slot-v-btn:disabled { opacity: .35; cursor: default; }
+
+/* ── Linkup Room password (premium) ── */
+.rx-pw-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.rx-pw-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  background: rgba(124,106,247,.15); color: var(--accent2); border: 1px solid rgba(124,106,247,.3);
+  flex-shrink: 0;
+}
 </style>
 
 </head>
@@ -1541,9 +1670,9 @@ body.game-active .wrap {
   <!-- ══ LOADER ══ -->
   <div id="screen-loader">
     <div class="home-tabs">
-      <button class="htab on" onclick="showHomeTab(this,'tab-load')">▶ Play</button>
-      <button class="htab" onclick="showHomeTab(this,'tab-lib')">📚 Library</button>
-      <button class="htab" onclick="showHomeTab(this,'tab-rx')">🔄 Linkup Room</button>
+      <button class="htab on" data-tab="tab-load" onclick="showHomeTab(this,'tab-load')">▶ Play</button>
+      <button class="htab" data-tab="tab-lib" onclick="showHomeTab(this,'tab-lib')">📚 Library</button>
+      <button class="htab" data-tab="tab-rx" onclick="showHomeTab(this,'tab-rx')">🔄 Linkup Room</button>
     </div>
 
     <!-- Play tab -->
@@ -1650,19 +1779,31 @@ body.game-active .wrap {
         </div>
         <div class="premium-feature-row">
           <div class="premium-feature-icon">☁️</div>
-          <div><div class="premium-feature-label">Cloud Save Sync</div><div class="premium-feature-sub">Save states backed up and synced across devices automatically</div></div>
+          <div><div class="premium-feature-label">Cloud Save Sync</div><div class="premium-feature-sub">Save states backed up and synced across all your devices</div></div>
         </div>
         <div class="premium-feature-row">
           <div class="premium-feature-icon">📚</div>
-          <div><div class="premium-feature-label">Library Sync</div><div class="premium-feature-sub">Your game history and playtime follow you everywhere</div></div>
+          <div><div class="premium-feature-label">Library Sync</div><div class="premium-feature-sub">Play times, favourites, and history follow you everywhere</div></div>
         </div>
         <div class="premium-feature-row">
-          <div class="premium-feature-icon">🔗</div>
-          <div><div class="premium-feature-label">Your Own ROM Storage</div><div class="premium-feature-sub">Link Google Drive or Dropbox — ROMs load from your cloud</div></div>
+          <div class="premium-feature-icon">💾</div>
+          <div><div class="premium-feature-label">10 Save Slots + Visual Picker</div><div class="premium-feature-sub">3× more slots than free, with screenshot thumbnails for each one</div></div>
         </div>
         <div class="premium-feature-row">
-          <div class="premium-feature-icon">📤</div>
-          <div><div class="premium-feature-label">Free tier</div><div class="premium-feature-sub">Manual export/import always available at no cost</div></div>
+          <div class="premium-feature-icon">🎨</div>
+          <div><div class="premium-feature-label">Exclusive Themes</div><div class="premium-feature-sub">DOOM, Dreamcast, Cyber Neon — premium-only colour schemes</div></div>
+        </div>
+        <div class="premium-feature-row">
+          <div class="premium-feature-icon">📊</div>
+          <div><div class="premium-feature-label">Play Stats Dashboard</div><div class="premium-feature-sub">Total hours, top games, 60-day activity heatmap</div></div>
+        </div>
+        <div class="premium-feature-row">
+          <div class="premium-feature-icon">📦</div>
+          <div><div class="premium-feature-label">Dropbox ROM Storage</div><div class="premium-feature-sub">Link Dropbox — scan and stream your whole ROM collection</div></div>
+        </div>
+        <div class="premium-feature-row">
+          <div class="premium-feature-icon">🔄</div>
+          <div><div class="premium-feature-label">Linkup Room Host Perks</div><div class="premium-feature-sub">Set a room password to keep your room invite-only</div></div>
         </div>
 
         <div style="margin-top:22px">
@@ -1715,9 +1856,24 @@ body.game-active .wrap {
           </div>
           <div class="premium-feature-row">
             <div class="premium-feature-icon">📚</div>
-            <div>
+            <div style="flex:1">
               <div class="premium-feature-label">Library Sync</div>
-              <div class="premium-feature-sub">Active</div>
+              <div class="premium-feature-sub" id="lib-sync-status-label">Active — syncs after each session</div>
+            </div>
+            <button class="rx-btn" onclick="syncLibraryToCloud().then(()=>showToast('📚 Library synced'))" style="flex-shrink:0">Sync</button>
+          </div>
+          <div class="premium-feature-row">
+            <div class="premium-feature-icon">💾</div>
+            <div>
+              <div class="premium-feature-label">Save Slots</div>
+              <div class="premium-feature-sub">10 slots with visual screenshot picker</div>
+            </div>
+          </div>
+          <div class="premium-feature-row">
+            <div class="premium-feature-icon">📊</div>
+            <div style="flex:1">
+              <div class="premium-feature-label">Play Stats</div>
+              <div class="premium-feature-sub">Your full gaming history and heatmap — below</div>
             </div>
           </div>
           <div class="premium-feature-row" style="flex-wrap:wrap;gap:8px">
@@ -1740,11 +1896,26 @@ body.game-active .wrap {
               </div>
             </div>
           </div>
+
+          <!-- Stats Dashboard inline -->
+          <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--border)">
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">📊 Play Stats</div>
+            <div id="stats-dashboard">
+              <div class="lib-empty" style="padding:16px 0"><span>Loading…</span></div>
+            </div>
+          </div>
         </div>
 
         <!-- Free account — upgrade prompt -->
         <div id="signin-upgrade-prompt">
-          <div class="note" style="margin-bottom:14px">You're on a free account. Upgrade to unlock cloud sync and ROM storage linking.</div>
+          <div class="note" style="margin-bottom:14px">You're on a free account. Upgrade to unlock cloud sync, 10 save slots, exclusive themes, play stats, and more.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">☁️ Cloud saves</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">💾 3 → 10 save slots</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">🎨 3 exclusive themes</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">📊 Stats dashboard</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">📦 Dropbox ROMs</span>
+          </div>
           <button class="auth-btn" onclick="openSubscribePage()">💳 Upgrade — $3/month</button>
           <div style="margin-top:14px">
             <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Have a redeem code?</div>
@@ -2065,7 +2236,7 @@ body.game-active .wrap {
               <div class="ctrl-row"><span class="key">F7</span><span class="klabel">Quick load</span></div>
             </div>
           </div>
-          <div class="note">Save states persist across sessions in your browser. Each game has its own slots.</div>
+          <div class="note">Save states persist across sessions in your browser. Each game has its own slots. Free: 3 slots · <span style="color:var(--accent2)">✨ Premium: 10 slots with screenshot thumbnails</span>.</div>
         </div>
       </div>
     </div>
@@ -2222,19 +2393,29 @@ const KB_DEFAULT = KB.nes;
 
 /* ══ THEMES ══════════════════════════════════════════ */
 const THEMES = [
-  { id:'default',  name:'Deep Space',     emoji:'🌌', bg:'#0e0e14', accent:'#7c6af7', dot:'#7c6af7' },
-  { id:'nes',      name:'Nintendo NES',   emoji:'🎮', bg:'#1a1a1a', accent:'#e60012', dot:'#e60012' },
-  { id:'snes',     name:'Super Nintendo', emoji:'🕹️', bg:'#14101e', accent:'#6f3f98', dot:'#6f3f98' },
-  { id:'gameboy',  name:'Game Boy',       emoji:'🟩', bg:'#1e2018', accent:'#9bbc0f', dot:'#9bbc0f' },
-  { id:'n64',      name:'Nintendo 64',    emoji:'🔵', bg:'#0c0c14', accent:'#0033a0', dot:'#0033a0' },
-  { id:'genesis',  name:'Sega Genesis',   emoji:'⚡', bg:'#0a0a0a', accent:'#0072bc', dot:'#0072bc' },
-  { id:'gba',      name:'Game Boy Advance',emoji:'🟣',bg:'#0e0c18', accent:'#4e3d8c', dot:'#4e3d8c' },
-  { id:'ps1',      name:'PlayStation',    emoji:'🔷', bg:'#0a0c10', accent:'#003087', dot:'#003087' },
+  { id:'default',    name:'Deep Space',      emoji:'🌌', bg:'#0e0e14', accent:'#7c6af7', dot:'#7c6af7', premium:false },
+  { id:'nes',        name:'Nintendo NES',    emoji:'🎮', bg:'#1a1a1a', accent:'#e60012', dot:'#e60012', premium:false },
+  { id:'snes',       name:'Super Nintendo',  emoji:'🕹️', bg:'#14101e', accent:'#6f3f98', dot:'#6f3f98', premium:false },
+  { id:'gameboy',    name:'Game Boy',        emoji:'🟩', bg:'#1e2018', accent:'#9bbc0f', dot:'#9bbc0f', premium:false },
+  { id:'n64',        name:'Nintendo 64',     emoji:'🔵', bg:'#0c0c14', accent:'#0033a0', dot:'#0033a0', premium:false },
+  { id:'genesis',    name:'Sega Genesis',    emoji:'⚡', bg:'#0a0a0a', accent:'#0072bc', dot:'#0072bc', premium:false },
+  { id:'gba',        name:'Game Boy Advance',emoji:'🟣', bg:'#0e0c18', accent:'#4e3d8c', dot:'#4e3d8c', premium:false },
+  { id:'ps1',        name:'PlayStation',     emoji:'🔷', bg:'#0a0c10', accent:'#003087', dot:'#003087', premium:false },
+  { id:'doom',       name:'DOOM',            emoji:'💀', bg:'#0d0404', accent:'#b81414', dot:'#b81414', premium:true },
+  { id:'dreamcast',  name:'Dreamcast',       emoji:'🟠', bg:'#0c0c0e', accent:'#e87820', dot:'#e87820', premium:true },
+  { id:'cyberneon',  name:'Cyber Neon',      emoji:'🌆', bg:'#060612', accent:'#e020c0', dot:'#e020c0', premium:true },
 ];
 
 let _currentTheme = localStorage.getItem('rp-theme') || 'default';
 
-function applyTheme(id) {
+function applyTheme(id, fromStartup) {
+  const t = THEMES.find(x => x.id === id);
+  // Only gate if user explicitly clicked — not restoring from localStorage on load
+  if (!fromStartup && t && t.premium && !_isPremium) {
+    showToast('✨ Premium theme — upgrade to unlock');
+    showHomeTab(document.getElementById('tab-signin-btn'), 'tab-signin');
+    return;
+  }
   const attr = id === 'default' ? '' : id;
   if (document.documentElement.getAttribute('data-theme') !== attr) {
     document.documentElement.setAttribute('data-theme', attr);
@@ -2247,22 +2428,25 @@ function applyTheme(id) {
 function renderThemesGrid() {
   const el = document.getElementById('themes-grid');
   if (!el) return;
-  el.innerHTML = THEMES.map(t => `
+  el.innerHTML = THEMES.map(t => {
+    const locked = t.premium && !_isPremium;
+    return `
     <div class="theme-card ${_currentTheme === t.id ? 'active' : ''}"
          onclick="applyTheme('${t.id}')"
          style="background:${t.bg}; border-color:${_currentTheme===t.id ? t.accent : 'transparent'}">
-      <div class="theme-preview" style="background:${t.bg}">
+      <div class="theme-preview" style="background:${t.bg};position:relative">
         <span style="font-size:32px">${t.emoji}</span>
+        ${locked ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);font-size:18px">🔒</div>` : ''}
       </div>
       <div class="theme-label" style="background:${t.bg}80; color:#e0e0f0">
-        <span>${t.name}</span>
+        <span>${t.name}${t.premium ? ' <span style="font-size:9px;color:gold">✨</span>' : ''}</span>
         <span class="theme-dot" style="background:${t.dot}"></span>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
-applyTheme(_currentTheme);
+// Theme applied after DOM ready — see DOMContentLoaded below
 
 /* ══ PLAYER SIZE ══════════════════════════════════════
    'mobile' mode: sizes the game holder to fill as much
@@ -2364,6 +2548,7 @@ window.addEventListener('resize', () => {
 // Apply saved size on load — deferred so it doesn't block first paint
 // Render recently played on home screen — deferred likewise
 document.addEventListener('DOMContentLoaded', () => {
+  applyTheme(_currentTheme, true); // now DOM exists — themes-grid will render
   applyGameHolderHeight();
   renderRecentlyPlayed();
 });
@@ -2405,6 +2590,7 @@ function showHomeTab(btn, id) {
   if (id === 'tab-lib')     renderLibrary();
   if (id === 'tab-signin')  _updatePremiumUI();
   if (id === 'tab-settings') { renderThemesGrid(); renderSizeOptions(); renderBiosStatus(); }
+  if (id === 'tab-signin' && _isPremium) setTimeout(() => renderStatsDashboard(), 100);
 }
 
 function openSettings() {
@@ -3726,16 +3912,30 @@ function rxSendAll(msg) {
   _rx.conns.forEach(c => { if (c && c.open) try { c.send(msg); } catch(e){} });
 }
 
+let _rxRoomPassword = '';
+let _rxJoinPassword = '';
+
 async function rxHost() {
   if (_rx.peer) rxLeave();
   const code = rxGenCode();
   _rx.isHost = true; _rx.code = code; _rx.conns = []; _rx.roms = {};
-  _rx.memberNames = {};
-  _rx.myName = getUsername();
+  _rx.memberNames = {}; _rx.myName = getUsername();
+
+  // Premium: ask for optional room password
+  if (_isPremium) {
+    const pw = window.prompt('🔒 Set a room password (leave blank for open room):') || '';
+    _rxRoomPassword = pw.trim();
+    if (_rxRoomPassword) showToast('🔒 Password protected room created');
+  } else {
+    _rxRoomPassword = '';
+  }
 
   _rx.peer = new Peer('rxroom-' + code, { host:'0.peerjs.com', port:443, path:'/', secure:true });
   _rx.peer.on('error', e => { showToast('⚠️ ' + e.type); rxLeave(); });
-  _rx.peer.on('open', () => { rxShowRoom(code); showToast('📋 Room created — share the code!'); });
+  _rx.peer.on('open', () => {
+    rxShowRoom(code);
+    showToast(_rxRoomPassword ? '🔒 Password room created — share the code!' : '📋 Room created — share the code!');
+  });
 
   _rx.peer.on('connection', conn => {
     if (_rx.conns.filter(Boolean).length >= RX_MAX - 1) { conn.close(); return; }
@@ -3743,8 +3943,14 @@ async function rxHost() {
     _rx.conns[idx] = conn;
 
     conn.on('data', d => {
-      // First message from a new connection must be their chosen name
+      // First message from a new connection must be their chosen name + optional pw
       if (d.type === 'hello') {
+        // Password check for premium rooms
+        if (_rxRoomPassword && d.password !== _rxRoomPassword) {
+          conn.send({ type:'rejected', reason:'Wrong room password' });
+          setTimeout(() => conn.close(), 500);
+          return;
+        }
         const theirName = (d.name && d.name.trim()) ? d.name.trim().slice(0, 20) : ('Player' + (idx + 2));
         _rx.memberNames[idx] = theirName;
         const members = rxGetMembers();
@@ -3772,6 +3978,9 @@ async function rxJoin() {
   if (raw.length !== 6) { showToast('⚠️ Enter the full 6-character room code'); return; }
   if (_rx.peer) rxLeave();
   _rx.isHost = false; _rx.code = raw; _rx.conns = []; _rx.roms = {};
+  // Ask for password (will be sent in hello — host ignores it if room is open)
+  const pw = window.prompt('Enter room password (leave blank if no password):') || '';
+  _rxJoinPassword = pw.trim();
 
   _rx.peer = new Peer({ host:'0.peerjs.com', port:443, path:'/', secure:true });
   _rx.peer.on('error', e => { showToast('⚠️ Could not connect: ' + e.type); rxLeave(); });
@@ -3780,9 +3989,12 @@ async function rxJoin() {
     _rx.conns[0] = conn;
     conn.on('open', () => {
       showToast('🔌 Connected — waiting for room info…');
-      conn.send({ type:'hello', name: getUsername() });
+      conn.send({ type:'hello', name: getUsername(), password: _rxJoinPassword || '' });
     });
-    conn.on('data', d => rxOnData(d, conn, 'Host'));
+    conn.on('data', d => {
+      if (d.type === 'rejected') { showToast('❌ ' + (d.reason || 'Rejected by host')); rxLeave(); return; }
+      rxOnData(d, conn, 'Host');
+    });
     conn.on('close', () => { showToast('Host disconnected'); rxLeave(); });
     conn.on('error', e => { showToast('⚠️ Connection lost'); rxLeave(); });
   });
@@ -4128,6 +4340,8 @@ async function _savePlayTime() {
       if (entry) {
         entry.playTimeSecs = (entry.playTimeSecs || 0) + secs;
         await dbPut(META_STORE, entry);
+        // Auto-sync to cloud for premium users (debounced via session end)
+        if (_isPremium) syncLibraryToCloud().catch(() => {});
       }
     } catch(e) {}
   })();
@@ -4352,7 +4566,9 @@ function showToast(msg) {
    gameManager.getState()       → Uint8Array
    gameManager.loadState(bytes) → void
 ═══════════════════════════════════════════════════ */
-const NUM_SLOTS = 5;
+const NUM_SLOTS_FREE = 3;
+const NUM_SLOTS_PREMIUM = 10;
+let NUM_SLOTS = NUM_SLOTS_FREE; // updated after auth loads
 
 function getGM() {
   const emu = window.EJS_emulator;
@@ -4441,20 +4657,42 @@ async function deleteSlot(slot) {
 async function renderSlots() {
   if (!_currentGame) return;
   const el = document.getElementById('ss-slots'); if (!el) return;
-  const labels = ['Quick save','Slot 1','Slot 2','Slot 3','Slot 4'];
   const slots = await Promise.all(Array.from({length:NUM_SLOTS},(_,i) =>
     dbGet(SS_STORE, ssKey(_currentGame,i)).catch(()=>null)));
-  el.innerHTML = slots.map((s,i) => `
-    <div class="ss-slot">
-      <div class="ss-thumb">${s&&s.img?`<img src="${s.img}">`:'<span>Empty</span>'}</div>
-      <div class="ss-slot-label">${labels[i]}</div>
-      <div class="ss-slot-time">${s?timeAgo(s.ts):'—'}</div>
-      <div class="ss-slot-actions">
-        <button class="ss-slot-btn save-btn" onclick="saveToSlot(${i})">💾</button>
-        <button class="ss-slot-btn load-btn" onclick="loadFromSlot(${i})" ${!s?'disabled':''}>📂</button>
-        <button class="ss-slot-btn del-btn" onclick="deleteSlot(${i})" ${!s?'disabled':''}>✕</button>
-      </div>
-    </div>`).join('');
+
+  if (_isPremium) {
+    // Premium: visual card grid with screenshot thumbnails
+    const labels = ['Quick Save','Slot 1','Slot 2','Slot 3','Slot 4','Slot 5','Slot 6','Slot 7','Slot 8','Slot 9'];
+    el.innerHTML = `<div class="ss-slots-visual">${slots.map((s,i) => `
+      <div class="ss-slot-v">
+        <div class="ss-slot-v-thumb">
+          ${s && s.img ? `<img src="${s.img}" alt="Slot ${i}">` : `<span class="ss-slot-v-empty">Empty</span>`}
+        </div>
+        <div class="ss-slot-v-body">
+          <div class="ss-slot-v-label">${labels[i]||'Slot '+i}</div>
+          <div class="ss-slot-v-time">${s ? timeAgo(s.ts) : '—'}</div>
+          <div class="ss-slot-v-actions">
+            <button class="ss-slot-v-btn" onclick="saveToSlot(${i})" title="Save">💾</button>
+            <button class="ss-slot-v-btn" onclick="loadFromSlot(${i})" ${!s?'disabled':''} title="Load">📂</button>
+            <button class="ss-slot-v-btn" onclick="deleteSlot(${i})" ${!s?'disabled':''} title="Delete">✕</button>
+          </div>
+        </div>
+      </div>`).join('')}</div>`;
+  } else {
+    // Free: standard list with 3 slots
+    const labels = ['Quick save','Slot 1','Slot 2'];
+    el.innerHTML = slots.map((s,i) => `
+      <div class="ss-slot">
+        <div class="ss-thumb">${s&&s.img?`<img src="${s.img}">`:'<span>Empty</span>'}</div>
+        <div class="ss-slot-label">${labels[i]}</div>
+        <div class="ss-slot-time">${s?timeAgo(s.ts):'—'}</div>
+        <div class="ss-slot-actions">
+          <button class="ss-slot-btn save-btn" onclick="saveToSlot(${i})">💾</button>
+          <button class="ss-slot-btn load-btn" onclick="loadFromSlot(${i})" ${!s?'disabled':''}>📂</button>
+          <button class="ss-slot-btn del-btn" onclick="deleteSlot(${i})" ${!s?'disabled':''}>✕</button>
+        </div>
+      </div>`).join('');
+  }
 }
 
 /* ══ EJS COMMANDS ════════════════════════════════════ */
@@ -5036,7 +5274,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260801053506';
+const APP_VERSION = '20260802033100';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5071,14 +5309,14 @@ let _updateCheckInProgress = false;
    visitors see the tutorial instead, never this.
 ═══════════════════════════════════════════════════ */
 const CHANGELOG_ITEMS = [
+  '✨ <strong>Premium gets a massive upgrade</strong> — 10 save slots with screenshot thumbnails, 3 exclusive themes (DOOM, Dreamcast, Cyber Neon), play stats dashboard, cloud library sync, and Linkup Room passwords',
+  '📊 <strong>Stats dashboard</strong> — track total hours, top games by play time, and a 60-day activity heatmap (Premium, new 📊 tab)',
+  '💾 <strong>Visual save state picker</strong> — Premium users now see screenshot thumbnails for each of their 10 save slots instead of a plain list',
+  '🎨 <strong>3 new exclusive themes</strong> — DOOM (brimstone red), Dreamcast (orange sunrise), Cyber Neon (synthwave purple). Free themes unchanged',
+  '☁️ <strong>Cloud library sync</strong> — play times, favourites, and game history now automatically back up and restore across devices for Premium users',
+  '🔒 <strong>Linkup Room passwords</strong> — Premium hosts can now password-protect their room to keep it invite-only',
   '📱 iPhone fullscreen is now truly edge-to-edge in landscape — tap anywhere to reveal save/load/exit controls',
   '🎮 Controller HUD: when a gamepad is connected in fullscreen, subtle button indicators appear on each side of the screen',
-  '🔄 Phone auto-enters fullscreen when you rotate to landscape while a game is running',
-  '👤 Set a custom username in Settings — shown to others in Linkup Room and chat',
-  '🔍 Search your library instantly from the Library tab',
-  '⚡ Cover art now loads lazily — only fetches for games actually scrolled into view',
-  '💾 Export or import your library (play time, favourites, settings) as a backup file',
-  '⌨️ Press <span class="key" style="display:inline-block">?</span> anytime to see a full keyboard shortcut cheat sheet',
 ];
 
 function showWhatsNew() {
@@ -5346,11 +5584,17 @@ async function _refreshPremiumState() {
     }
     _isPremium = data?.is_premium || false;
     console.log('[Auth] is_premium:', _isPremium);
+    // Trigger cloud restore on first sign-in for the session
+    if (_isPremium && !_cloudRestoreDone) {
+      _cloudRestoreDone = true;
+      setTimeout(() => restoreLibraryFromCloud(), 1500);
+    }
   } catch(e) {
     console.warn('[Auth] _refreshPremiumState exception:', e);
     _isPremium = false;
   }
 }
+let _cloudRestoreDone = false;
 
 function _updatePremiumUI() {
   const loggedOut = document.getElementById('signin-logged-out');
@@ -5362,6 +5606,13 @@ function _updatePremiumUI() {
   const statusEl  = document.getElementById('account-status');
   const tabBtn    = document.getElementById('tab-signin-btn');
   if (!loggedOut) return;
+
+  // Update slot count based on premium
+  NUM_SLOTS = _isPremium ? NUM_SLOTS_PREMIUM : NUM_SLOTS_FREE;
+
+  // Re-apply theme — premium may have just unlocked a saved premium theme
+  const savedTheme = localStorage.getItem('rp-theme') || 'default';
+  applyTheme(savedTheme, true); // pass startup=true so it always applies
 
   if (_currentUser) {
     loggedOut.style.display = 'none';
@@ -5375,6 +5626,8 @@ function _updatePremiumUI() {
       if (statusEl)       statusEl.textContent = '✨ Premium';
       if (premiumActive)  premiumActive.style.display  = 'block';
       if (upgradePrompt)  upgradePrompt.style.display  = 'none';
+      // Render stats whenever premium panel becomes visible
+      setTimeout(() => renderStatsDashboard(), 100);
     } else {
       if (statusEl)       statusEl.textContent = 'Free account';
       if (premiumActive)  premiumActive.style.display  = 'none';
@@ -5385,6 +5638,201 @@ function _updatePremiumUI() {
     loggedIn.style.display  = 'none';
     if (tabBtn) tabBtn.textContent = '👤 Sign In';
   }
+  // Re-render themes in case premium state changed
+  renderThemesGrid();
+}
+
+/* ══ CLOUD LIBRARY SYNC (Premium) ═══════════════════════
+   Syncs library metadata (play times, favourites, settings)
+   to Supabase. No ROMs are ever uploaded — metadata only.
+   On any device, signing in as premium restores the library.
+═══════════════════════════════════════════════════════ */
+async function syncLibraryToCloud() {
+  if (!_isPremium || !_currentUser || !_supabase) return;
+  try {
+    let entries = [];
+    try { entries = await dbGetAll(META_STORE); } catch(e) { return; }
+    if (!entries.length) return;
+    const payload = entries.map(e => ({
+      user_id: _currentUser.id,
+      game_id: e.id,
+      name: e.name,
+      core: e.core,
+      sys_label: e.sysLabel,
+      play_time_secs: e.playTimeSecs || 0,
+      play_count: e.playCount || 0,
+      last_played: e.lastPlayed || null,
+      added_at: e.addedAt || null,
+      favourite: !!e.favourite,
+    }));
+    await _supabase.from('library_metadata').upsert(payload, { onConflict: 'user_id,game_id' });
+    console.log('[Sync] Library synced', entries.length, 'entries');
+  } catch(e) {
+    console.warn('[Sync] Library sync failed:', e);
+  }
+}
+
+async function restoreLibraryFromCloud() {
+  if (!_isPremium || !_currentUser || !_supabase) return;
+  try {
+    const { data, error } = await _supabase
+      .from('library_metadata')
+      .select('*')
+      .eq('user_id', _currentUser.id);
+    if (error || !data || !data.length) return;
+    let restored = 0;
+    for (const row of data) {
+      const existing = await dbGet(META_STORE, row.game_id).catch(() => null);
+      if (!existing) {
+        await dbPut(META_STORE, {
+          id: row.game_id,
+          name: row.name,
+          core: row.core,
+          sysLabel: row.sys_label,
+          playTimeSecs: row.play_time_secs || 0,
+          playCount: row.play_count || 0,
+          lastPlayed: row.last_played,
+          addedAt: row.added_at,
+          favourite: !!row.favourite,
+          hasRom: false,
+          romInOpfs: false,
+          fileSizeKB: 0,
+        });
+        restored++;
+      } else {
+        // Merge: keep local data but update play stats to whichever is higher
+        if ((row.play_time_secs || 0) > (existing.playTimeSecs || 0)) {
+          existing.playTimeSecs = row.play_time_secs;
+          existing.playCount = Math.max(existing.playCount || 0, row.play_count || 0);
+          existing.favourite = existing.favourite || !!row.favourite;
+          await dbPut(META_STORE, existing);
+        }
+      }
+    }
+    if (restored > 0) {
+      showToast(`☁️ Restored ${restored} game${restored===1?'':'s'} from cloud`);
+      renderLibrary();
+    }
+    console.log('[Sync] Cloud restore done, restored', restored, 'entries');
+  } catch(e) {
+    console.warn('[Sync] Cloud restore failed:', e);
+  }
+}
+
+/* ══ SAVE STATE CLOUD SYNC ════════════════════════════
+   Save states are stored in Supabase as base64 blobs.
+   Existing Dropbox upload is for Dropbox-connected users;
+   this Supabase path is the native premium sync.
+═══════════════════════════════════════════════════════ */
+async function syncSaveStates() {
+  if (!_isPremium || !_currentUser || !_supabase) { showToast('✨ Premium required'); return; }
+  const label = document.getElementById('sync-status-label');
+  if (label) label.textContent = 'Syncing…';
+  try {
+    let entries = [];
+    try { entries = await dbGetAll(SS_STORE); } catch(e) {}
+    if (!entries.length) { if (label) label.textContent = 'No saves to sync'; return; }
+    let synced = 0;
+    for (const ss of entries) {
+      let bytes = null;
+      if (ss.opfsFilename) {
+        const buf = await opfsRead(ss.opfsFilename).catch(() => null);
+        if (buf) bytes = new Uint8Array(buf);
+      }
+      if (!bytes && ss.data && ss.data.length) bytes = new Uint8Array(ss.data);
+      if (!bytes) continue;
+      const b64 = btoa(String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 1024 * 512)))); // cap 512KB per slot
+      await _supabase.from('save_states').upsert({
+        user_id: _currentUser.id,
+        save_key: ss.id,
+        game: ss.game,
+        slot: ss.slot,
+        ts: ss.ts,
+        img: ss.img || null,
+        data_b64: b64,
+      }, { onConflict: 'user_id,save_key' });
+      synced++;
+    }
+    if (label) label.textContent = `Synced ${synced} save${synced===1?'':'s'} · ${new Date().toLocaleTimeString()}`;
+    showToast(`☁️ ${synced} save state${synced===1?'':'s'} synced`);
+  } catch(e) {
+    console.warn('[Sync] Save state sync failed:', e);
+    if (label) label.textContent = 'Sync failed — try again';
+    showToast('❌ Sync failed');
+  }
+}
+
+/* ══ PLAY STATS DASHBOARD (Premium) ══════════════════ */
+async function renderStatsDashboard() {
+  const el = document.getElementById('stats-dashboard');
+  if (!el) return;
+  if (!_isPremium) {
+    el.innerHTML = `<div class="lib-empty" style="padding:32px 0">
+      <span class="big">📊</span>
+      <strong style="display:block;margin-bottom:8px">Premium feature</strong>
+      <span>Upgrade to see your full play history and stats.</span>
+      <button class="auth-btn" style="margin-top:14px;max-width:220px" onclick="showHomeTab(document.getElementById('tab-signin-btn'),'tab-signin')">✨ Get Premium</button>
+    </div>`;
+    return;
+  }
+  let entries = [];
+  try { entries = await dbGetAll(META_STORE); } catch(e) {}
+  if (!entries.length) { el.innerHTML = `<div class="lib-empty"><span class="big">📊</span>Play some games first to see your stats!</div>`; return; }
+
+  const totalSecs = entries.reduce((a,e) => a + (e.playTimeSecs || 0), 0);
+  const totalSessions = entries.reduce((a,e) => a + (e.playCount || 0), 0);
+  const gamesPlayed = entries.filter(e => (e.playCount || 0) > 0).length;
+  const favCount = entries.filter(e => e.favourite).length;
+
+  // Top 5 by play time
+  const top5 = [...entries].filter(e => e.playTimeSecs > 0)
+    .sort((a,b) => (b.playTimeSecs||0) - (a.playTimeSecs||0)).slice(0,5);
+  const maxTime = top5[0] ? (top5[0].playTimeSecs || 1) : 1;
+
+  // Recent 60-day heatmap (daily played = any session that day)
+  const now = Date.now();
+  const dayMs = 86400000;
+  const cells = [];
+  for (let i = 59; i >= 0; i--) {
+    const dayStart = now - i * dayMs;
+    const dayEnd = dayStart + dayMs;
+    const sessions = entries.filter(e => e.lastPlayed && e.lastPlayed >= dayStart && e.lastPlayed < dayEnd).length;
+    cells.push(sessions);
+  }
+  const maxCells = Math.max(...cells, 1);
+
+  el.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-card-value">${fmtPlayTime(totalSecs) || '0s'}</div><div class="stat-card-label">Total play time</div></div>
+      <div class="stat-card"><div class="stat-card-value">${gamesPlayed}</div><div class="stat-card-label">Games played</div></div>
+      <div class="stat-card"><div class="stat-card-value">${totalSessions}</div><div class="stat-card-label">Sessions</div></div>
+      <div class="stat-card"><div class="stat-card-value">${favCount}</div><div class="stat-card-label">Favourites</div></div>
+    </div>
+    ${top5.length ? `
+    <div style="margin-bottom:20px">
+      <div class="lib-toolbar-label" style="margin-bottom:10px">⏱ Top Games by Play Time</div>
+      ${top5.map((e,i) => `
+        <div class="stat-game-row">
+          <div class="stat-game-rank">#${i+1}</div>
+          <div class="stat-game-info">
+            <div class="stat-game-name">${e.name}</div>
+            <div class="stat-game-meta">${e.sysLabel} · ${fmtPlayTime(e.playTimeSecs)}</div>
+          </div>
+          <div class="stat-game-bar-wrap">
+            <div class="stat-game-bar">
+              <div class="stat-game-bar-fill" style="width:${Math.round((e.playTimeSecs/maxTime)*100)}%"></div>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>` : ''}
+    <div>
+      <div class="lib-toolbar-label" style="margin-bottom:10px">📅 Last 60 Days</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${cells.map(c => {
+        const lvl = c === 0 ? '' : c <= maxCells*0.25 ? 'l1' : c <= maxCells*0.5 ? 'l2' : c <= maxCells*0.75 ? 'l3' : 'l4';
+        return `<div class="heatmap-cell ${lvl}" title="${c} session${c!==1?'s':''}"></div>`;
+      }).join('')}</div>
+      <div style="font-size:10px;color:var(--dim);margin-top:6px">Each cell = one day · darker = more sessions</div>
+    </div>`;
 }
 
 // ── Auth modal ────────────────────────────────────────────
@@ -5897,12 +6345,19 @@ if ('serviceWorker' in navigator) {
           const newWorker = reg.installing;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[SW] New version ready — activating');
               newWorker.postMessage('skipWaiting');
             }
           });
         });
       })
       .catch(err => console.warn('[SW] Registration failed:', err));
+
+    // When the new SW takes control, reload once so the fresh cache is used
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[SW] Controller changed — reloading for fresh cache');
+      window.location.reload();
+    });
   });
 }
 </script>
