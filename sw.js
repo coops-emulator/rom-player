@@ -2,7 +2,7 @@
    ROM Player by Coops — Service Worker
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260801053506';
+const CACHE_VERSION = 'rp-20260802025512';
 
 const PRECACHE = [
   '/',
