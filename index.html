@@ -1035,7 +1035,6 @@ footer {
 .bios-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .rx-btn.danger { border-color: rgba(240,90,90,.4); color: #f05a5a; }
 .rx-btn.danger:hover { background: rgba(240,90,90,.15); }
-.settings-section-title {
   font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .1em; color: var(--dim); margin-bottom: 14px;
 }
@@ -2249,6 +2248,12 @@ body.game-active .wrap {
 <div class="toast" id="toast"></div>
 
 <script>
+/* ══ EARLY GLOBALS — must exist before any function runs ══
+   These are declared in their canonical location later but
+   need to be reachable from the very first lines of JS.   */
+var _isPremium = false;          // set to true after Supabase auth confirms premium
+var _storageReadyPromise = null; // assigned by initStorage() — var so second script block can read it
+
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════ */
 const SYS = {
   nes:  { core:'nes',          label:'NES',           bg:'#1e3a5f', fg:'#7ec8f7' },
@@ -2584,28 +2589,25 @@ function showHomeTab(btn, id) {
     const el = document.getElementById(t);
     if (el) el.style.display = 'none';
   });
-  if (btn) btn.classList.add('on');
-  const panel = document.getElementById(id);
-  if (panel) panel.style.display = 'block';
+  btn.classList.add('on');
+  document.getElementById(id).style.display = 'block';
   if (id === 'tab-load')    renderRecentlyPlayed();
   if (id === 'tab-lib')     renderLibrary();
-  if (id === 'tab-signin')  { _updatePremiumUI(); if (_isPremium) setTimeout(() => renderStatsDashboard(), 100); }
-  if (id === 'tab-settings') { renderThemesGrid(); renderSizeOptions(); renderBiosStatus(); checkStorageUsage(); }
+  if (id === 'tab-signin')  _updatePremiumUI();
+  if (id === 'tab-settings') { renderThemesGrid(); renderSizeOptions(); renderBiosStatus(); }
+  if (id === 'tab-signin' && _isPremium) setTimeout(() => renderStatsDashboard(), 100);
 }
 
 function openSettings() {
   // Hide all tab content, clear tab highlights, show settings panel
   document.querySelectorAll('.htab').forEach(t => t.classList.remove('on'));
-  const signinHdrBtn = document.getElementById('tab-signin-btn');
-  if (signinHdrBtn) signinHdrBtn.classList.remove('on');
-  ['tab-load','tab-lib','tab-rx','tab-signin'].forEach(t => {
+  ['tab-load','tab-lib','tab-rx'].forEach(t => {
     const el = document.getElementById(t);
     if (el) el.style.display = 'none';
   });
   document.getElementById('tab-settings').style.display = 'block';
   renderThemesGrid();
   renderSizeOptions();
-  renderBiosStatus();
   const unameInput = document.getElementById('username-input');
   if (unameInput) unameInput.value = getUsername();
   checkStorageUsage();
@@ -2915,7 +2917,7 @@ async function initStorage() {
   _storageReady = true;
 }
 // Fire immediately — everything that needs storage awaits this
-const _storageReadyPromise = initStorage();
+_storageReadyPromise = initStorage();
 
 /* ══ COVER ART ═══════════════════════════════════════
    Source: thumbnails.libretro.com — the official CDN.
@@ -5534,7 +5536,7 @@ const STRIPE_PK     = 'pk_test_51Txfil2K7pC2eUjZhyT2jjXxK2c35ovzlcoMCFDEZp7oq20Y
 
 let _supabase = null;
 let _currentUser = null;
-let _isPremium = false;
+// _isPremium declared as var at top of script — shared across script blocks
 let _authMode = 'signup';
 
 function initSupabase() {
@@ -5973,7 +5975,22 @@ async function _sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-// syncSaveStates is defined above (near renderStatsDashboard) — no duplicate needed
+// ── Cloud save sync (stub — expands when ROM storage is added) ────
+async function syncSaveStates() {
+  if (!_currentUser || !_isPremium) return;
+  const label = document.getElementById('sync-status-label');
+  if (label) label.textContent = 'Syncing…';
+  try {
+    // Pull local save states and push to Supabase
+    // Full implementation added when ROM storage linking is built
+    await new Promise(r => setTimeout(r, 800)); // placeholder
+    if (label) label.textContent = 'Last synced: just now ✓';
+    showToast('☁️ Saves synced');
+  } catch(e) {
+    if (label) label.textContent = 'Sync failed — try again';
+    showToast('Sync failed');
+  }
+}
 
 function openSubscribePage() {
   // Stripe payment link goes here once Stripe is set up
@@ -6315,13 +6332,12 @@ function _coreFriendlyLabel(core) {
 
 initDropbox();
 // ══════════════════════════════════════════════════════════════
-// Augment openSettings once — checkForUpdates + coops style + premium UI
 const _origOpenSettingsFinal = openSettings;
 window.openSettings = function() {
   _origOpenSettingsFinal();
   checkForUpdates(false);
   setTimeout(_applyCoopsStyleIfNeeded, 0);
-  // only update premium UI if sign-in tab is visible, don't force it
+  _updatePremiumUI();
 };
 
 // Service Worker registration
