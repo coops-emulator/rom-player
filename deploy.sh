@@ -1,11 +1,10 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════
 # ROM Player by Coops — Deploy Script
-# Stamps version, then deploys to Cloudflare Pages.
+# Run this instead of netlify deploy --prod
+# It stamps the version automatically then deploys.
 #
 # Usage:  ./deploy.sh
-# Requires: wrangler CLI (`npm install -g wrangler`)
-#           and `wrangler login` done once.
 # ═══════════════════════════════════════════════════
 
 set -e
@@ -24,17 +23,18 @@ sed -i.bak "s/const APP_VERSION = '[^']*'/const APP_VERSION = '$VERSION'/" "$HTM
 rm -f "$HTML_FILE.bak"
 
 # Write version.json so the app can check for updates
-echo "{\"version\":\"$VERSION\"}" > "$VERSION_FILE"
+echo "{ \"version\": \"$VERSION\" }" > "$VERSION_FILE"
 
-# Bump the service worker cache version
+# Bump the service worker cache version too, so old cached
+# assets never linger across deploys.
 sed -i.bak "s/const CACHE_VERSION = '[^']*'/const CACHE_VERSION = 'rp-$VERSION'/" "$SW_FILE"
 rm -f "$SW_FILE.bak"
 
 echo "✅ Version stamped (index.html, version.json, sw.js)"
-echo "🚀 Deploying to Cloudflare Pages..."
+echo "🚀 Deploying to Netlify..."
 
-# Deploy via wrangler
-wrangler pages deploy "$SCRIPT_DIR" --project-name=romplayerbycoops --commit-dirty=true
+# Deploy
+netlify deploy --prod --dir="$SCRIPT_DIR"
 
 echo ""
 echo "✨ Done! Version $VERSION is live."
