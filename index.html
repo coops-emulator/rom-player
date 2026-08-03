@@ -203,6 +203,81 @@
   --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Virtual Boy — pure black with clinical CRT red */
+[data-theme="virtualboy"] {
+  --bg:      #000000;
+  --surf:    #0d0000;
+  --surf2:   #180000;
+  --border:  #2e0000;
+  --text:    #ff0000;
+  --muted:   #aa0000;
+  --dim:     #660000;
+  --accent:  #ff0000;
+  --accent2: #ff4444;
+  --glow:    rgba(255,0,0,.30);
+  --font:    'Courier New', monospace;
+}
+
+/* GBA SP Cobalt — deep electric blue, cold and technical */
+[data-theme="gbasp"] {
+  --bg:      #020814;
+  --surf:    #060e20;
+  --surf2:   #0a162e;
+  --border:  #122448;
+  --text:    #d0e8ff;
+  --muted:   #5080c0;
+  --dim:     #1e3a70;
+  --accent:  #1060e0;
+  --accent2: #4090ff;
+  --glow:    rgba(16,96,224,.26);
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Sega Saturn — warm charcoal, gold/amber accent */
+[data-theme="saturn"] {
+  --bg:      #111008;
+  --surf:    #1c1a10;
+  --surf2:   #272418;
+  --border:  #3c3820;
+  --text:    #f0e8d0;
+  --muted:   #907840;
+  --dim:     #504820;
+  --accent:  #c8a030;
+  --accent2: #e8c060;
+  --glow:    rgba(200,160,48,.24);
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Neo Geo MVS — pure black cabinet, high-contrast arcade amber */
+[data-theme="neogeo"] {
+  --bg:      #000000;
+  --surf:    #0a0800;
+  --surf2:   #141000;
+  --border:  #2a2200;
+  --text:    #f8e8c0;
+  --muted:   #a07000;
+  --dim:     #604000;
+  --accent:  #e8a000;
+  --accent2: #ffcc40;
+  --glow:    rgba(232,160,0,.30);
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Famicom Disk — warm brown, muted yellow with typewriter feel */
+[data-theme="famicomdisk"] {
+  --bg:      #110c04;
+  --surf:    #1c1408;
+  --surf2:   #261c0c;
+  --border:  #3e2e14;
+  --text:    #f0d880;
+  --muted:   #907030;
+  --dim:     #544020;
+  --accent:  #d4a800;
+  --accent2: #f0c830;
+  --glow:    rgba(212,168,0,.24);
+  --font:    'Courier New', monospace;
+}
+
 html, body {
   height: 100%;
   background: var(--bg);
@@ -1791,7 +1866,7 @@ body.game-active .wrap {
         </div>
         <div class="premium-feature-row">
           <div class="premium-feature-icon">🎨</div>
-          <div><div class="premium-feature-label">Exclusive Themes</div><div class="premium-feature-sub">DOOM, Dreamcast, Cyber Neon — premium-only colour schemes</div></div>
+          <div><div class="premium-feature-label">Exclusive Themes</div><div class="premium-feature-sub">8 premium-only colour schemes — DOOM, Dreamcast, Cyber Neon, Virtual Boy, GBA SP Cobalt, Saturn, Neo Geo MVS, Famicom Disk</div></div>
         </div>
         <div class="premium-feature-row">
           <div class="premium-feature-icon">📊</div>
@@ -1912,7 +1987,7 @@ body.game-active .wrap {
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
             <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">☁️ Cloud saves</span>
             <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">💾 3 → 10 save slots</span>
-            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">🎨 3 exclusive themes</span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">🎨 8 exclusive themes</span>
             <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">📊 Stats dashboard</span>
             <span style="font-size:11px;padding:3px 10px;border-radius:20px;background:var(--surf2);border:1px solid var(--border);color:var(--muted)">📦 Dropbox ROMs</span>
           </div>
@@ -2401,9 +2476,14 @@ const THEMES = [
   { id:'genesis',    name:'Sega Genesis',    emoji:'⚡', bg:'#0a0a0a', accent:'#0072bc', dot:'#0072bc', premium:false },
   { id:'gba',        name:'Game Boy Advance',emoji:'🟣', bg:'#0e0c18', accent:'#4e3d8c', dot:'#4e3d8c', premium:false },
   { id:'ps1',        name:'PlayStation',     emoji:'🔷', bg:'#0a0c10', accent:'#003087', dot:'#003087', premium:false },
-  { id:'doom',       name:'DOOM',            emoji:'💀', bg:'#0d0404', accent:'#b81414', dot:'#b81414', premium:true },
-  { id:'dreamcast',  name:'Dreamcast',       emoji:'🟠', bg:'#0c0c0e', accent:'#e87820', dot:'#e87820', premium:true },
-  { id:'cyberneon',  name:'Cyber Neon',      emoji:'🌆', bg:'#060612', accent:'#e020c0', dot:'#e020c0', premium:true },
+  { id:'doom',        name:'DOOM',            emoji:'💀', bg:'#0d0404', accent:'#b81414', dot:'#b81414', premium:true },
+  { id:'dreamcast',   name:'Dreamcast',       emoji:'🟠', bg:'#0c0c0e', accent:'#e87820', dot:'#e87820', premium:true },
+  { id:'cyberneon',   name:'Cyber Neon',      emoji:'🌆', bg:'#060612', accent:'#e020c0', dot:'#e020c0', premium:true },
+  { id:'virtualboy',  name:'Virtual Boy',     emoji:'🔴', bg:'#000000', accent:'#ff0000', dot:'#ff0000', premium:true },
+  { id:'gbasp',       name:'GBA SP Cobalt',   emoji:'🔵', bg:'#020814', accent:'#1060e0', dot:'#1060e0', premium:true },
+  { id:'saturn',      name:'Sega Saturn',     emoji:'🪙', bg:'#111008', accent:'#c8a030', dot:'#c8a030', premium:true },
+  { id:'neogeo',      name:'Neo Geo MVS',     emoji:'🕹️', bg:'#000000', accent:'#e8a000', dot:'#e8a000', premium:true },
+  { id:'famicomdisk', name:'Famicom Disk',    emoji:'💾', bg:'#110c04', accent:'#d4a800', dot:'#d4a800', premium:true },
 ];
 
 let _currentTheme = localStorage.getItem('rp-theme') || 'default';
@@ -5063,13 +5143,13 @@ document.getElementById('shortcut-overlay').addEventListener('click', function(e
 
 <!-- ── What's New (changelog for returning users) ── -->
 <div class="tutorial-overlay" id="whats-new-overlay">
-  <div class="tutorial-card">
-    <div class="tutorial-header">
-      <h2>✨ What's New</h2>
-      <p>A few things just got better</p>
+  <div class="tutorial-card" style="max-height:min(540px,85vh);display:flex;flex-direction:column">
+    <div class="tutorial-header" style="padding:16px 20px;flex-shrink:0">
+      <h2 style="font-size:17px;margin-bottom:2px">✨ What's New</h2>
+      <p style="font-size:12px">A few things just got better</p>
     </div>
-    <div class="tutorial-steps" id="whats-new-body"></div>
-    <div class="tutorial-footer">
+    <div class="tutorial-steps" id="whats-new-body" style="overflow-y:auto;flex:1;padding:14px 18px"></div>
+    <div class="tutorial-footer" style="flex-shrink:0">
       <button class="rx-btn accent" onclick="closeWhatsNew()" style="flex:1">Got it!</button>
     </div>
   </div>
@@ -5274,7 +5354,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260802033100';
+const APP_VERSION = '20260803201337';
 
 // GitHub raw is the source of truth for updates.
 // Netlify serves the bootstrap shell; all updates flow from GitHub.
@@ -5309,10 +5389,10 @@ let _updateCheckInProgress = false;
    visitors see the tutorial instead, never this.
 ═══════════════════════════════════════════════════ */
 const CHANGELOG_ITEMS = [
-  '✨ <strong>Premium gets a massive upgrade</strong> — 10 save slots with screenshot thumbnails, 3 exclusive themes (DOOM, Dreamcast, Cyber Neon), play stats dashboard, cloud library sync, and Linkup Room passwords',
+  '✨ <strong>Premium gets a massive upgrade</strong> — 10 save slots with screenshot thumbnails, 8 exclusive themes, play stats dashboard, cloud library sync, and Linkup Room passwords',
   '📊 <strong>Stats dashboard</strong> — track total hours, top games by play time, and a 60-day activity heatmap (Premium, new 📊 tab)',
   '💾 <strong>Visual save state picker</strong> — Premium users now see screenshot thumbnails for each of their 10 save slots instead of a plain list',
-  '🎨 <strong>3 new exclusive themes</strong> — DOOM (brimstone red), Dreamcast (orange sunrise), Cyber Neon (synthwave purple). Free themes unchanged',
+  '🎨 <strong>8 exclusive themes</strong> — Virtual Boy (clinical CRT red), GBA SP Cobalt (electric blue), Sega Saturn (gold/amber), Neo Geo MVS (arcade amber cabinet), Famicom Disk (warm brown typewriter). Plus the original trio: DOOM, Dreamcast, Cyber Neon',
   '☁️ <strong>Cloud library sync</strong> — play times, favourites, and game history now automatically back up and restore across devices for Premium users',
   '🔒 <strong>Linkup Room passwords</strong> — Premium hosts can now password-protect their room to keep it invite-only',
   '📱 iPhone fullscreen is now truly edge-to-edge in landscape — tap anywhere to reveal save/load/exit controls',
