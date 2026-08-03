@@ -5703,7 +5703,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260803201337';
+const APP_VERSION = '20260803221607';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // The actual update is a cache-bust reload — Cloudflare Pages serves fresh files.
@@ -6802,22 +6802,7 @@ if ('serviceWorker' in navigator) {
       window.location.reload();
     });
 
-    // Also do an eager version.json check right on load — if the server
-    // has a newer version than what we booted with, trigger a full update.
-    try {
-      const res  = await fetch('/version.json', { cache: 'no-store' });
-      const data = await res.json();
-      const stored = localStorage.getItem('rp-version');
-      if (stored && stored !== data.version) {
-        console.log('[App] Version changed', stored, '→', data.version, '— refreshing');
-        localStorage.setItem('rp-version', data.version);
-        window.location.reload();
-      } else {
-        localStorage.setItem('rp-version', data.version);
-      }
-    } catch (e) {
-      // Offline — skip
-    }
+
   });
 }
 </script>
