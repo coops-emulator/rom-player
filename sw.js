@@ -114,24 +114,4 @@ async function cacheFirst(request) {
 
 self.addEventListener('message', event => {
   if (event.data === 'skipWaiting') self.skipWaiting();
-
-  if (event.data && event.data.type === 'cacheGitHubFiles') {
-    const port = event.ports[0];
-    const urls = event.data.urls || [];
-    const toLocalKey = (rawUrl) => '/' + rawUrl.split('/').pop().split('?')[0];
-    caches.open(CACHE_VERSION).then(async (cache) => {
-      try {
-        await Promise.all(urls.map(async (rawUrl) => {
-          const cleanUrl = rawUrl.split('?')[0];
-          const r = await fetch(cleanUrl + '?t=' + Date.now(), { cache: 'no-store' });
-          if (!r.ok) throw new Error('Failed to fetch ' + cleanUrl);
-          await cache.put(toLocalKey(cleanUrl), r.clone());
-          await cache.put(cleanUrl, r);
-        }));
-        if (port) port.postMessage({ ok: true });
-      } catch(err) {
-        if (port) port.postMessage({ ok: false, error: err.message });
-      }
-    });
-  }
 });

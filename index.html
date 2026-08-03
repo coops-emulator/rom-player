@@ -1048,6 +1048,25 @@ footer {
   color: var(--dim); font-size: 16px; cursor: pointer; padding: 4px;
 }
 
+/* ─── Update available popup ─── */
+.update-popup {
+  display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 9100; background: var(--surf); border: 1px solid var(--accent);
+  border-radius: 16px; padding: 14px 18px; box-shadow: 0 8px 40px rgba(0,0,0,.6);
+  max-width: 340px; width: calc(100% - 40px);
+  animation: slideUp .35s cubic-bezier(.2,.8,.4,1);
+}
+.update-popup-inner { display: flex; align-items: center; gap: 12px; }
+.update-popup-icon { font-size: 26px; flex-shrink: 0; }
+.update-popup-text { flex: 1; }
+.update-popup-text strong { display: block; font-size: 14px; color: var(--text); margin-bottom: 2px; }
+.update-popup-text span { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.update-popup-actions { display: flex; gap: 8px; margin-top: 10px; }
+.update-popup-close {
+  position: absolute; top: 8px; right: 10px; background: none; border: none;
+  color: var(--dim); font-size: 16px; cursor: pointer; padding: 4px;
+}
+
 /* ─── Tutorial overlay ─── */
 .tutorial-overlay {
   display: none; position: fixed; inset: 0; z-index: 9999;
@@ -5123,6 +5142,22 @@ document.getElementById('shortcut-overlay').addEventListener('click', function(e
   </div>
 </div>
 
+<!-- ── Update available popup ── -->
+<div class="update-popup" id="update-popup">
+  <button class="update-popup-close" onclick="dismissUpdatePopup()">✕</button>
+  <div class="update-popup-inner">
+    <div class="update-popup-icon">⬆️</div>
+    <div class="update-popup-text">
+      <strong>Update available</strong>
+      <span id="update-popup-sub">A new version of ROM Player is ready.</span>
+    </div>
+  </div>
+  <div class="update-popup-actions">
+    <button class="rx-btn accent" onclick="applyUpdate()" style="flex:1">Install now</button>
+    <button class="rx-btn" onclick="dismissUpdatePopup()" style="flex:1">Later</button>
+  </div>
+</div>
+
 <!-- ── Tutorial / Welcome modal ── -->
 <div class="tutorial-overlay" id="tutorial-overlay">
   <div class="tutorial-card">
@@ -5356,15 +5391,10 @@ _storageReadyPromise.then(async () => {
 ═══════════════════════════════════════════════════ */
 const APP_VERSION = '20260803201337';
 
-// GitHub raw is the source of truth for updates.
-// Netlify serves the bootstrap shell; all updates flow from GitHub.
+// VERSION_URL: source of truth for checking whether an update is available.
+// The actual update is a cache-bust reload — Cloudflare Pages serves fresh files.
 const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/coops-emulator/rom-player/main/';
 const VERSION_URL     = GITHUB_RAW_BASE + 'version.json';
-const FILES_TO_UPDATE = [
-  GITHUB_RAW_BASE + 'index.html',
-  GITHUB_RAW_BASE + 'sw.js',
-  GITHUB_RAW_BASE + 'version.json',
-];
 let _latestVersion = null;
 let _updateCheckInProgress = false;
 
@@ -5495,51 +5525,65 @@ async function checkForUpdates(manual) {
 }
 
 function showUpdateBanner(newVer) {
+  // Settings banner (in-page)
   const banner = document.getElementById('update-banner');
   const text   = document.getElementById('update-banner-text');
   if (banner) banner.style.display = 'flex';
   if (text)   text.textContent = '✨ Update available (v' + newVer + ') — tap to install';
+  // Floating popup
+  const popup = document.getElementById('update-popup');
+  const sub   = document.getElementById('update-popup-sub');
+  if (sub) sub.textContent = 'Version ' + newVer + ' is ready to install.';
+  if (popup) {
+    popup.style.display = 'block';
+    // Auto-dismiss after 12s if user doesn't interact
+    clearTimeout(popup._autoDismiss);
+    popup._autoDismiss = setTimeout(() => dismissUpdatePopup(), 12000);
+  }
 }
 function hideUpdateBanner() {
   const banner = document.getElementById('update-banner');
   if (banner) banner.style.display = 'none';
+  dismissUpdatePopup();
+}
+function dismissUpdatePopup() {
+  const popup = document.getElementById('update-popup');
+  if (!popup) return;
+  clearTimeout(popup._autoDismiss);
+  popup.style.display = 'none';
 }
 async function applyUpdate() {
   const btn    = document.getElementById('update-btn');
   const banner = document.getElementById('update-banner');
   const text   = document.getElementById('update-banner-text');
 
-  if (text) text.textContent = '⏳ Downloading update…';
+  if (text) text.textContent = '⏳ Installing update…';
   if (btn)  btn.disabled = true;
-  showToast('Downloading update from GitHub…');
+  showToast('Installing update…');
 
   try {
-    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
-    if (!sw) throw new Error('No SW controller');
+    // Wipe the SW cache so the next load fetches fresh files from Cloudflare.
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
 
-    await new Promise((resolve, reject) => {
-      const channel = new MessageChannel();
-      channel.port1.onmessage = e => {
-        if (e.data && e.data.ok) resolve();
-        else reject(new Error(e.data && e.data.error || 'SW cache failed'));
-      };
-      sw.postMessage({ type: 'cacheGitHubFiles', urls: FILES_TO_UPDATE }, [channel.port2]);
-      setTimeout(() => reject(new Error('SW timeout')), 15000);
-    });
+    // Tell the waiting SW (if any) to take over immediately.
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage('skipWaiting');
+    }
 
-    showToast('✓ Update cached — reloading…');
     sessionStorage.setItem('_justUpdated', '1');
+    showToast('✓ Update ready — reloading…');
     setTimeout(() => {
       const url = new URL(window.location.href);
       url.searchParams.set('_refresh', Date.now());
       window.location.replace(url.toString());
-    }, 1000);
+    }, 800);
 
   } catch(e) {
     console.warn('[Update] applyUpdate failed:', e);
     if (text) text.textContent = '✨ Update available — tap to install';
     if (btn)  btn.disabled = false;
-    showToast('Update failed — check your connection and try again');
+    showToast('Update failed — try refreshing the page manually');
   }
 }
 
