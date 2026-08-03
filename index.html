@@ -6775,27 +6775,49 @@ window.openSettings = function() {
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      .then(reg => {
-        console.log('[SW] Registered, scope:', reg.scope);
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[SW] New version ready — activating');
-              newWorker.postMessage('skipWaiting');
-            }
-          });
-        });
-      })
-      .catch(err => console.warn('[SW] Registration failed:', err));
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      console.log('[SW] Registered, scope:', reg.scope);
 
-    // When the new SW takes control, reload once so the fresh cache is used
+      // Force the SW to check for its own update immediately
+      reg.update().catch(() => {});
+
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            console.log('[SW] New version ready — activating');
+            newWorker.postMessage('skipWaiting');
+          }
+        });
+      });
+    } catch (err) {
+      console.warn('[SW] Registration failed:', err);
+    }
+
+    // When the new SW takes control, reload once so the fresh HTML is used
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[SW] Controller changed — reloading for fresh cache');
+      console.log('[SW] Controller changed — reloading for fresh content');
       window.location.reload();
     });
+
+    // Also do an eager version.json check right on load — if the server
+    // has a newer version than what we booted with, trigger a full update.
+    try {
+      const res  = await fetch('/version.json', { cache: 'no-store' });
+      const data = await res.json();
+      const stored = localStorage.getItem('rp-version');
+      if (stored && stored !== data.version) {
+        console.log('[App] Version changed', stored, '→', data.version, '— refreshing');
+        localStorage.setItem('rp-version', data.version);
+        window.location.reload();
+      } else {
+        localStorage.setItem('rp-version', data.version);
+      }
+    } catch (e) {
+      // Offline — skip
+    }
   });
 }
 </script>

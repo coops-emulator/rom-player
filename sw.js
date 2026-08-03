@@ -2,11 +2,9 @@
    ROM Player by Coops — Service Worker
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260803201337';
+const CACHE_VERSION = 'rp-20260803221607';
 
 const PRECACHE = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon-180.png?v=20260731020435',
   '/icon-192.png?v=20260731020435',
@@ -16,7 +14,12 @@ const PRECACHE = [
   'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
 ];
 
-const NETWORK_FIRST = ['version.json'];
+// Always hit the network for these — never serve stale
+const NETWORK_FIRST = [
+  'version.json',
+  'index.html',
+  '/',
+];
 
 const SKIP_CACHE_HOSTS = [
   'api.thegamesdb.net',
@@ -51,29 +54,11 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (SKIP_CACHE_HOSTS.some(h => url.hostname.includes(h))) return;
 
-  // Navigation requests — always try network first, fall back to cached index.html
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).then(response => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_VERSION).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(async () => {
-        // Offline — serve index.html from cache
-        const cached =
-          await caches.match('/index.html') ||
-          await caches.match('/') ||
-          await caches.match('./index.html');
-        return cached || new Response('Offline', { status: 503 });
-      })
-    );
-    return;
-  }
+  const isNetworkFirst =
+    event.request.mode === 'navigate' ||
+    NETWORK_FIRST.some(name => url.pathname.endsWith(name) || url.pathname === '/');
 
-  // version.json — network first
-  if (NETWORK_FIRST.some(name => url.pathname.endsWith(name))) {
+  if (isNetworkFirst) {
     event.respondWith(networkFirst(event.request));
     return;
   }
@@ -91,9 +76,13 @@ async function networkFirst(request) {
     }
     return response;
   } catch (err) {
-    const cached = await caches.match(request);
+    // Offline fallback
+    const cached =
+      await caches.match(request) ||
+      await caches.match('/index.html') ||
+      await caches.match('/');
     if (cached) return cached;
-    throw err;
+    return new Response('Offline', { status: 503 });
   }
 }
 
