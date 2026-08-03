@@ -539,7 +539,7 @@ body {
 /* ─── Themes panel ─── */
 .themes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
 }
 .theme-card {
@@ -549,14 +549,81 @@ body {
 .theme-card:hover { transform: translateY(-2px); }
 .theme-card.active { border-color: var(--accent); }
 .theme-preview {
-  height: 70px; display: flex; align-items: center; justify-content: center;
-  font-size: 24px; position: relative;
+  height: 60px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; position: relative;
 }
 .theme-label {
-  padding: 8px 12px; font-size: 12px; font-weight: 600;
+  padding: 6px 10px; font-size: 11px; font-weight: 600;
   display: flex; align-items: center; justify-content: space-between;
 }
-.theme-dot { width: 8px; height: 8px; border-radius: 50%; }
+.theme-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+/* ─── Premium themes expander ─── */
+.premium-themes-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: var(--surf2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; cursor: pointer; margin-top: 10px;
+  color: var(--text); font-size: 13px; font-weight: 600; transition: border-color .15s;
+}
+.premium-themes-toggle:hover { border-color: var(--accent); }
+.premium-themes-toggle .ptog-right { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.premium-themes-panel {
+  display: none; margin-top: 8px;
+  animation: fadeSlideIn .2s ease;
+}
+.premium-themes-panel.open { display: block; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Custom theme card (full-width) ─── */
+.custom-theme-card {
+  grid-column: 1 / -1; border-radius: 12px; overflow: hidden; cursor: pointer;
+  border: 2px solid transparent; transition: border-color .15s;
+  display: flex; align-items: stretch; min-height: 56px;
+}
+.custom-theme-card:hover { border-color: var(--accent); }
+.custom-theme-card.active { border-color: var(--accent); }
+.custom-theme-preview {
+  width: 56px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.custom-theme-body {
+  flex: 1; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; font-weight: 600;
+}
+.custom-theme-dots { display: flex; gap: 5px; align-items: center; }
+.custom-theme-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ─── Custom theme editor (inline) ─── */
+.custom-theme-editor {
+  background: var(--surf2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; margin-top: 8px; display: none;
+}
+.custom-theme-editor.open { display: block; animation: fadeSlideIn .2s ease; }
+.cte-name-input {
+  width: 100%; background: var(--surf); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px;
+  margin-bottom: 14px; box-sizing: border-box;
+}
+.cte-name-input:focus { outline: none; border-color: var(--accent); }
+.cte-color-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cte-color-label { font-size: 12px; color: var(--text); }
+.cte-color-pick { display: flex; align-items: center; gap: 8px; }
+.cte-swatch {
+  width: 32px; height: 32px; border-radius: 8px; border: 2px solid var(--border);
+  cursor: pointer; flex-shrink: 0; transition: border-color .15s;
+}
+.cte-swatch:hover { border-color: var(--accent); }
+.cte-hex {
+  background: var(--surf); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 8px; color: var(--text); font-size: 11px; font-family: 'Courier New', monospace;
+  width: 76px;
+}
+.cte-hex:focus { outline: none; border-color: var(--accent); }
+.cte-actions { display: flex; gap: 8px; margin-top: 14px; }
+.cte-section-label { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .04em; }
 
 /* ─── Player screen ─── */
 /* ─── iOS input zoom prevention ───────────────────────
@@ -2150,7 +2217,21 @@ body.game-active .wrap {
 
       <div class="settings-section" style="margin-top:28px">
         <div class="settings-section-title">🎨 Theme</div>
-        <div class="themes-grid" id="themes-grid"></div>
+        <!-- Free themes always visible -->
+        <div class="themes-grid" id="themes-grid-free"></div>
+        <!-- Premium themes — collapsed by default -->
+        <button class="premium-themes-toggle" id="premium-themes-toggle" onclick="togglePremiumThemes()">
+          <span>✨ Premium Themes</span>
+          <span class="ptog-right">
+            <span id="premium-toggle-active-label"></span>
+            <span id="premium-toggle-chevron">▾</span>
+          </span>
+        </button>
+        <div class="premium-themes-panel" id="premium-themes-panel">
+          <div class="themes-grid" id="themes-grid-premium"></div>
+          <!-- Custom theme card + editor live here, injected by JS -->
+          <div id="custom-theme-slot"></div>
+        </div>
       </div>
 
       <!-- App -->
@@ -2506,15 +2587,78 @@ const THEMES = [
 ];
 
 let _currentTheme = localStorage.getItem('rp-theme') || 'default';
+let _premiumPanelOpen = false;
+
+// ── Custom theme helpers ──────────────────────────────
+function _loadCustomTheme() {
+  try { return JSON.parse(localStorage.getItem('rp-custom-theme') || 'null'); } catch(e) { return null; }
+}
+function _saveCustomTheme(obj) {
+  localStorage.setItem('rp-custom-theme', JSON.stringify(obj));
+}
+
+// Derive a full set of CSS vars from just bg + accent hex colours.
+function _deriveCustomVars(bg, accent) {
+  // Lighten a hex colour by mixing toward white by `amt` (0–1)
+  const hexToRgb = h => {
+    const n = parseInt(h.replace('#',''), 16);
+    return [(n>>16)&255, (n>>8)&255, n&255];
+  };
+  const mix = (rgb, w, amt) => rgb.map((c,i) => Math.round(c*(1-amt)+w[i]*amt));
+  const toHex = rgb => '#' + rgb.map(c => c.toString(16).padStart(2,'0')).join('');
+  const bgRgb  = hexToRgb(bg);
+  const accRgb = hexToRgb(accent);
+  const white  = [255,255,255];
+  const surf   = toHex(mix(bgRgb, white, .06));
+  const surf2  = toHex(mix(bgRgb, white, .12));
+  const border = toHex(mix(bgRgb, white, .20));
+  const text   = toHex(mix(bgRgb, white, .92));
+  const muted  = toHex(mix(bgRgb, accRgb, .55));
+  const dim    = toHex(mix(bgRgb, white, .30));
+  const accent2= toHex(mix(accRgb, white, .30));
+  const [ar,ag,ab] = accRgb;
+  const glow   = `rgba(${ar},${ag},${ab},.22)`;
+  return { bg, surf, surf2, border, text, muted, dim, accent, accent2, glow };
+}
+
+function _applyCustomVars(vars) {
+  const root = document.documentElement;
+  Object.entries(vars).forEach(([k,v]) => root.style.setProperty('--'+k, v));
+  root.style.setProperty('--font', "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif");
+}
+function _clearCustomVars() {
+  const keys = ['bg','surf','surf2','border','text','muted','dim','accent','accent2','glow','font'];
+  keys.forEach(k => document.documentElement.style.removeProperty('--'+k));
+}
 
 function applyTheme(id, fromStartup) {
+  if (id === 'custom') {
+    if (!fromStartup && !_isPremium) {
+      showToast('✨ Premium — upgrade to unlock custom themes');
+      showHomeTab(document.getElementById('tab-signin-btn'), 'tab-signin');
+      return;
+    }
+    const ct = _loadCustomTheme();
+    if (!ct) { openCustomThemeEditor(); return; }
+    // Remove data-theme so no CSS block overrides our inline vars
+    document.documentElement.removeAttribute('data-theme');
+    _applyCustomVars(_deriveCustomVars(ct.bg, ct.accent));
+    _currentTheme = 'custom';
+    localStorage.setItem('rp-theme', 'custom');
+    renderThemesGrid();
+    // Auto-close premium panel after selection
+    setPremiumPanelOpen(false);
+    return;
+  }
+
   const t = THEMES.find(x => x.id === id);
-  // Only gate if user explicitly clicked — not restoring from localStorage on load
   if (!fromStartup && t && t.premium && !_isPremium) {
     showToast('✨ Premium theme — upgrade to unlock');
     showHomeTab(document.getElementById('tab-signin-btn'), 'tab-signin');
     return;
   }
+  // Clear any custom inline vars before applying a CSS-based theme
+  _clearCustomVars();
   const attr = id === 'default' ? '' : id;
   if (document.documentElement.getAttribute('data-theme') !== attr) {
     document.documentElement.setAttribute('data-theme', attr);
@@ -2522,27 +2666,197 @@ function applyTheme(id, fromStartup) {
   _currentTheme = id;
   localStorage.setItem('rp-theme', id);
   renderThemesGrid();
+  // Auto-close premium panel after selection
+  if (t && t.premium) setPremiumPanelOpen(false);
+}
+
+function setPremiumPanelOpen(open) {
+  _premiumPanelOpen = open;
+  const panel   = document.getElementById('premium-themes-panel');
+  const chevron = document.getElementById('premium-toggle-chevron');
+  if (panel)   panel.classList.toggle('open', open);
+  if (chevron) chevron.textContent = open ? '▴' : '▾';
+}
+
+function togglePremiumThemes() {
+  setPremiumPanelOpen(!_premiumPanelOpen);
 }
 
 function renderThemesGrid() {
-  const el = document.getElementById('themes-grid');
-  if (!el) return;
-  el.innerHTML = THEMES.map(t => {
+  const freeEl    = document.getElementById('themes-grid-free');
+  const premiumEl = document.getElementById('themes-grid-premium');
+  const customSlot= document.getElementById('custom-theme-slot');
+  const toggle    = document.getElementById('premium-themes-toggle');
+
+  const freeThemes    = THEMES.filter(t => !t.premium);
+  const premiumThemes = THEMES.filter(t => t.premium);
+
+  function themeCard(t) {
     const locked = t.premium && !_isPremium;
-    return `
-    <div class="theme-card ${_currentTheme === t.id ? 'active' : ''}"
+    return `<div class="theme-card ${_currentTheme === t.id ? 'active' : ''}"
          onclick="applyTheme('${t.id}')"
          style="background:${t.bg}; border-color:${_currentTheme===t.id ? t.accent : 'transparent'}">
       <div class="theme-preview" style="background:${t.bg};position:relative">
-        <span style="font-size:32px">${t.emoji}</span>
-        ${locked ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);font-size:18px">🔒</div>` : ''}
+        <span style="font-size:20px">${t.emoji}</span>
+        ${locked ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.65);font-size:16px">🔒</div>` : ''}
       </div>
       <div class="theme-label" style="background:${t.bg}80; color:#e0e0f0">
-        <span>${t.name}${t.premium ? ' <span style="font-size:9px;color:gold">✨</span>' : ''}</span>
-        <span class="theme-dot" style="background:${t.dot}"></span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</span>
+        <span class="theme-dot" style="background:${t.dot};flex-shrink:0"></span>
       </div>
     </div>`;
-  }).join('');
+  }
+
+  if (freeEl) freeEl.innerHTML = freeThemes.map(themeCard).join('');
+
+  if (premiumEl) premiumEl.innerHTML = premiumThemes.map(themeCard).join('');
+
+  // Custom theme card
+  if (customSlot) {
+    const ct = _loadCustomTheme();
+    const isActive = _currentTheme === 'custom';
+    const locked = !_isPremium;
+    const cardBg = ct ? ct.bg : '#1a1a2e';
+    const cardAcc = ct ? ct.accent : '#7c6af7';
+    const cardName = ct ? ct.name : 'My Theme';
+    customSlot.innerHTML = `
+      <div class="custom-theme-card ${isActive ? 'active' : ''}" id="custom-theme-card-el"
+           style="background:${cardBg}; border-color:${isActive ? cardAcc : 'transparent'}; margin-top:10px"
+           onclick="onCustomThemeCardClick()">
+        <div class="custom-theme-preview" style="background:${cardBg}">
+          ${locked ? '🔒' : '🖌️'}
+        </div>
+        <div class="custom-theme-body" style="background:${cardBg}90; color:#e0e0f0">
+          <span>${cardName}${locked ? ' <span style="font-size:9px;color:gold">✨</span>' : ' <span style="font-size:9px;color:var(--muted)">(yours)</span>'}</span>
+          <div class="custom-theme-dots">
+            <div class="custom-theme-dot" style="background:${cardBg};border:1.5px solid #ffffff40"></div>
+            <div class="custom-theme-dot" style="background:${cardAcc}"></div>
+            <span style="font-size:10px;color:#ffffff60;margin-left:4px">Edit ✏️</span>
+          </div>
+        </div>
+      </div>
+      <div class="custom-theme-editor" id="custom-theme-editor"></div>`;
+  }
+
+  // Update toggle button active label
+  const activeLabel = document.getElementById('premium-toggle-active-label');
+  if (activeLabel) {
+    const activePremium = THEMES.find(t => t.premium && t.id === _currentTheme);
+    const activeCustom = _currentTheme === 'custom';
+    if (activePremium) activeLabel.textContent = activePremium.name;
+    else if (activeCustom) { const ct = _loadCustomTheme(); activeLabel.textContent = ct ? ct.name : 'My Theme'; }
+    else activeLabel.textContent = '';
+  }
+
+  // Keep panel open state in sync
+  setPremiumPanelOpen(_premiumPanelOpen);
+}
+
+function onCustomThemeCardClick() {
+  if (!_isPremium) {
+    showToast('✨ Premium — upgrade to unlock custom themes');
+    showHomeTab(document.getElementById('tab-signin-btn'), 'tab-signin');
+    return;
+  }
+  const editor = document.getElementById('custom-theme-editor');
+  if (!editor) return;
+  if (editor.classList.contains('open')) {
+    editor.classList.remove('open');
+  } else {
+    openCustomThemeEditor();
+    // Also apply as active theme so preview updates live
+    if (_currentTheme !== 'custom') applyTheme('custom');
+  }
+}
+
+function openCustomThemeEditor() {
+  const editor = document.getElementById('custom-theme-editor');
+  if (!editor) return;
+  const ct = _loadCustomTheme() || { name: 'My Theme', bg: '#0e0e14', accent: '#7c6af7' };
+
+  editor.innerHTML = `
+    <div class="cte-section-label" style="font-size:11px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Customise your theme</div>
+    <input class="cte-name-input" id="cte-name" type="text" maxlength="20" placeholder="Theme name" value="${ct.name}">
+    <div class="cte-color-row">
+      <span class="cte-color-label">Background</span>
+      <div class="cte-color-pick">
+        <div class="cte-swatch" id="cte-swatch-bg" style="background:${ct.bg}" onclick="document.getElementById('cte-pick-bg').click()"></div>
+        <input class="cte-hex" id="cte-hex-bg" type="text" maxlength="7" value="${ct.bg}" oninput="onCteHexInput('bg')">
+        <input type="color" id="cte-pick-bg" value="${ct.bg}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" oninput="onCtePickerInput('bg')">
+      </div>
+    </div>
+    <div class="cte-color-row">
+      <span class="cte-color-label">Accent colour</span>
+      <div class="cte-color-pick">
+        <div class="cte-swatch" id="cte-swatch-accent" style="background:${ct.accent}" onclick="document.getElementById('cte-pick-accent').click()"></div>
+        <input class="cte-hex" id="cte-hex-accent" type="text" maxlength="7" value="${ct.accent}" oninput="onCteHexInput('accent')">
+        <input type="color" id="cte-pick-accent" value="${ct.accent}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" oninput="onCtePickerInput('accent')">
+      </div>
+    </div>
+    <div class="cte-actions">
+      <button class="rx-btn accent" onclick="saveCustomTheme()" style="flex:1">Save theme</button>
+      <button class="rx-btn" onclick="document.getElementById('custom-theme-editor').classList.remove('open')" style="flex:1">Cancel</button>
+    </div>`;
+
+  editor.classList.add('open');
+
+  // Live preview as user picks
+  _livePreviewCustom(ct.bg, ct.accent);
+}
+
+function onCtePickerInput(field) {
+  const val = document.getElementById('cte-pick-' + field).value;
+  const hex = document.getElementById('cte-hex-' + field);
+  const swatch = document.getElementById('cte-swatch-' + field);
+  if (hex) hex.value = val;
+  if (swatch) swatch.style.background = val;
+  _livePreviewFromEditor();
+}
+
+function onCteHexInput(field) {
+  const hex = document.getElementById('cte-hex-' + field).value;
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const picker = document.getElementById('cte-pick-' + field);
+  const swatch = document.getElementById('cte-swatch-' + field);
+  if (picker) picker.value = hex;
+  if (swatch) swatch.style.background = hex;
+  _livePreviewFromEditor();
+}
+
+function _livePreviewFromEditor() {
+  const bg = document.getElementById('cte-hex-bg');
+  const acc = document.getElementById('cte-hex-accent');
+  if (!bg || !acc) return;
+  const bgVal = bg.value, accVal = acc.value;
+  if (/^#[0-9a-fA-F]{6}$/.test(bgVal) && /^#[0-9a-fA-F]{6}$/.test(accVal)) {
+    _livePreviewCustom(bgVal, accVal);
+  }
+}
+
+function _livePreviewCustom(bg, accent) {
+  // Apply inline so we see changes immediately without touching data-theme
+  document.documentElement.removeAttribute('data-theme');
+  _applyCustomVars(_deriveCustomVars(bg, accent));
+}
+
+function saveCustomTheme() {
+  const name   = (document.getElementById('cte-name')?.value || 'My Theme').trim() || 'My Theme';
+  const bg     = document.getElementById('cte-hex-bg')?.value || '#0e0e14';
+  const accent = document.getElementById('cte-hex-accent')?.value || '#7c6af7';
+  if (!/^#[0-9a-fA-F]{6}$/.test(bg) || !/^#[0-9a-fA-F]{6}$/.test(accent)) {
+    showToast('Please enter valid hex colours (#rrggbb)');
+    return;
+  }
+  _saveCustomTheme({ name, bg, accent });
+  _currentTheme = 'custom';
+  localStorage.setItem('rp-theme', 'custom');
+  document.documentElement.removeAttribute('data-theme');
+  _applyCustomVars(_deriveCustomVars(bg, accent));
+  showToast('✓ Theme saved — ' + name);
+  renderThemesGrid();
+  // Close editor after save
+  const editor = document.getElementById('custom-theme-editor');
+  if (editor) editor.classList.remove('open');
 }
 
 // Theme applied after DOM ready — see DOMContentLoaded below
