@@ -2594,7 +2594,9 @@ function _loadCustomTheme() {
   try { return JSON.parse(localStorage.getItem('rp-custom-theme') || 'null'); } catch(e) { return null; }
 }
 function _saveCustomTheme(obj) {
-  localStorage.setItem('rp-custom-theme', JSON.stringify(obj));
+  const s = JSON.stringify(obj);
+  localStorage.setItem('rp-custom-theme', s);
+  prefSet('rp-custom-theme', s);
 }
 
 // Derive a full set of CSS vars from just bg + accent hex colours.
@@ -2665,6 +2667,7 @@ function applyTheme(id, fromStartup) {
   }
   _currentTheme = id;
   localStorage.setItem('rp-theme', id);
+  prefSet('rp-theme', id);
   renderThemesGrid();
   savePrefsToCloud();
   // Auto-close premium panel after selection
@@ -2923,6 +2926,7 @@ function saveCustomTheme() {
   _saveCustomTheme({ name, bg, accent });
   _currentTheme = 'custom';
   localStorage.setItem('rp-theme', 'custom');
+  prefSet('rp-theme', 'custom');
   document.documentElement.removeAttribute('data-theme');
   _applyCustomVars(_deriveCustomVars(bg, accent));
   showToast('✓ Theme saved — ' + name);
@@ -2953,6 +2957,8 @@ function applySize(name) {
   _customHeight = 0;
   localStorage.setItem('rp-size', name);
   localStorage.removeItem('rp-custom-height');
+  prefSet('rp-size', name);
+  prefSet('rp-custom-height', 0);
   applyGameHolderHeight();
   renderSizeOptions();
   const inp = document.getElementById('custom-height');
@@ -2966,6 +2972,8 @@ function applyCustomSize(val) {
   _currentSize = 'custom';
   localStorage.setItem('rp-size', 'custom');
   localStorage.setItem('rp-custom-height', px);
+  prefSet('rp-size', 'custom');
+  prefSet('rp-custom-height', String(px));
   applyGameHolderHeight();
   renderSizeOptions();
 }
@@ -3034,8 +3042,21 @@ window.addEventListener('resize', () => {
 
 // Apply saved size on load — deferred so it doesn't block first paint
 // Render recently played on home screen — deferred likewise
-document.addEventListener('DOMContentLoaded', () => {
-  applyTheme(_currentTheme, true); // now DOM exists — themes-grid will render
+document.addEventListener('DOMContentLoaded', async () => {
+  // Restore from IDB — more persistent than localStorage on iOS Safari
+  await _storageReadyPromise;
+  const savedTheme  = await prefGet('rp-theme', localStorage.getItem('rp-theme') || 'default');
+  const savedCustom = await prefGet('rp-custom-theme', localStorage.getItem('rp-custom-theme') || null);
+  const savedSize   = await prefGet('rp-size', localStorage.getItem('rp-size') || null);
+  const savedHeight = await prefGet('rp-custom-height', localStorage.getItem('rp-custom-height') || null);
+  if (savedCustom) {
+    const s = typeof savedCustom === 'string' ? savedCustom : JSON.stringify(savedCustom);
+    localStorage.setItem('rp-custom-theme', s);
+  }
+  if (savedTheme) { localStorage.setItem('rp-theme', savedTheme); _currentTheme = savedTheme; }
+  if (savedSize)  { localStorage.setItem('rp-size', savedSize); _currentSize = savedSize; }
+  if (savedHeight){ localStorage.setItem('rp-custom-height', String(savedHeight)); _customHeight = parseInt(savedHeight)||0; }
+  applyTheme(savedTheme || _currentTheme, true);
   applyGameHolderHeight();
   renderRecentlyPlayed();
 });
@@ -3375,7 +3396,7 @@ async function requestStoragePersistence() {
 const LS_MIGRATE_KEYS = [
   'rp-lib-sort','rp-username','rp-ctrl-rec-dismissed',
   'rp-ctrl-rec-last','rp-install-dismissed','rp-tutorial-done',
-  'rp-last-seen-version',
+  'rp-last-seen-version','rp-theme','rp-custom-theme','rp-size','rp-custom-height',
 ];
 async function migrateLocalStorage() {
   const alreadyDone = await prefGet('ls-migration-v4', false);
@@ -3414,236 +3435,79 @@ const _storageReadyPromise = initStorage();
 const _artMemCache = {};
 
 // EmulatorJS core → libretro system folder name (exact, with spaces)
-const LIBRETRO_SYSTEM = {
-  nes:           'Nintendo - Nintendo Entertainment System',
-  snes:          'Nintendo - Super Nintendo Entertainment System',
-  gba:           'Nintendo - Game Boy Advance',
-  gb:            'Nintendo - Game Boy',
-  gbc:           'Nintendo - Game Boy Color',
-  n64:           'Nintendo - Nintendo 64',
-  nds:           'Nintendo - Nintendo DS',
-  vb:            'Nintendo - Virtual Boy',
-  ws:            'Bandai - WonderSwan',
-  wsc:           'Bandai - WonderSwan Color',
-  segaMD:        'Sega - Mega Drive - Genesis',
-  sega32x:       'Sega - 32X',
-  segaGG:        'Sega - Game Gear',
-  segaMS:        'Sega - Master System - Mark III',
-  segaCD:        'Sega - Mega-CD - Sega CD',
-  saturn:        'Sega - Saturn',
-  psx:           'Sony - PlayStation',
-  ppsspp:        'Sony - PlayStation Portable',
-  pce:           'NEC - PC Engine - TurboGrafx 16',
-  ngp:           'SNK - Neo Geo Pocket Color',
-  neogeo:        'SNK - Neo Geo',
-  a2600:         'Atari - 2600',
-  lynx:          'Atari - Lynx',
-  coleco:        'Coleco - ColecoVision',
-  msx:           'Microsoft - MSX',
-  intellivision: 'Mattel - Intellivision',
-  vectrex:       'GCE - Vectrex',
-};
-
-// Extract region/revision tags from a raw ROM filename.
-// "Street Fighter II Turbo (USA).sfc" → ["(USA)"]
-// "Zelda (USA) (Rev 1).sfc"           → ["(USA)", "(Rev 1)"]
-function extractTags(rawName) {
-  const tags = [];
-  const re = /(\([^)]+\))/g;
-  let m;
-  while ((m = re.exec(rawName)) !== null) tags.push(m[1]);
-  return tags;
-}
-
-// Strip tags/extension to get the display name.
-// Keeps & : ' - and all chars that appear in libretro display names.
-// Does NOT strip & — it must survive to become _ in the filename.
-function cleanRomName(rawName) {
-  let n = rawName.replace(/\.[^.]+$/, '');        // strip extension
-  n = n.replace(/\s*[\(\[][^)\]]*[\)\]]/g, '');   // strip (tags) [tags]
-  n = n.replace(/_/g, ' ');                        // underscores → spaces
-  n = n.replace(/\s+/g, ' ').trim();
-  n = n.replace(/[\/\\<>|#%{}$!@`=+]/g, '');      // strip true noise only
-  return n.trim();
-}
-
-// Convert a display name to a libretro thumbnail filename.
-// Confirmed from live CDN: spaces stay as spaces (encoded as %20 in URL),
-// only & * / : ` < > ? \ | " become _
-function toLibretroFilename(displayName) {
-  return displayName.replace(/[&*/:`<>?\\|"]/g, '_');
-}
-
-// All region tag combinations to try, exact tags first then broad fallbacks.
-function regionVariants(tags) {
-  const seen = new Set();
-  const out  = [];
-  const add  = s => { if (!seen.has(s)) { seen.add(s); out.push(s); } };
-  if (tags.length > 0) {
-    add(tags.join(' '));  // e.g. "(USA) (Rev 1)"
-    add(tags[0]);         // e.g. "(USA)"
-  }
-  for (const r of [
-    '(USA)', '(Europe)', '(World)', '(Japan)', '(USA, Europe)',
-    '(USA, Japan)', '(Japan, USA)', '(Australia)', '(Germany)',
-    '(France)', '(Spain)', '(Italy)', '(Netherlands)', '(Korea)',
-    '(Brazil)', '(China)', '(Sweden)', '(Canada)',
-  ]) add(r);
-  for (const r of ['(USA)', '(Europe)', '(World)', '(Japan)']) {
-    for (const rev of ['(Rev 1)', '(Rev 2)', '(Rev A)', '(Rev B)', '(v1.1)', '(v1.0)']) {
-      add(`${r} ${rev}`);
-    }
-  }
-  add(''); // tagless last resort
-  return out;
-}
-
-// No-Intro article convention: "The Legend of Zelda" ↔ "Legend of Zelda, The"
-function nameVariants(displayName) {
-  const variants = [displayName];
-  const parts    = displayName.split(' - ');
-  const leading  = parts[0].match(/^(The|A|An)\s+(.+)$/i);
-  if (leading)
-    variants.push([`${leading[2]}, ${leading[1]}`, ...parts.slice(1)].join(' - '));
-  const trailing = parts[0].match(/^(.+),\s*(The|A|An)$/i);
-  if (trailing)
-    variants.push([`${trailing[2]} ${trailing[1]}`, ...parts.slice(1)].join(' - '));
-  return [...new Set(variants)];
-}
-
-// Build every URL to try. Takes raw ROM filename so region tags are available.
-function buildArtUrls(system, rawName) {
-  if (!system || !rawName) return [];
-  const displayName = cleanRomName(rawName);
-  if (!displayName) return [];
-
-  const tags    = extractTags(rawName);
-  const regions = regionVariants(tags);
-  const names   = nameVariants(displayName);
-  const folders = ['Named_Boxarts', 'Named_Titles', 'Named_Snaps'];
-  const seen    = new Set();
-  const urls    = [];
-  const add = u => { if (!seen.has(u)) { seen.add(u); urls.push(u); } };
-
-  // thumbnails.libretro.com — confirmed CDN, CORS open, spaces as %20
-  const encodedSystem = encodeURIComponent(system);
-  for (const name of names) {
-    for (const region of regions) {
-      const fullName = region ? `${name} ${region}` : name;
-      const filename = encodeURIComponent(toLibretroFilename(fullName));
-      for (const folder of folders) {
-        add(`https://thumbnails.libretro.com/${encodedSystem}/${folder}/${filename}.png`);
-      }
-    }
-  }
-
-  return urls;
-}
-
-// Cap simultaneous cover art fetches — prevents flooding the network on low-power
-// devices (iPhone in Low Power Mode cuts network throughput significantly).
-const _artSemaphore = { max: 3, active: 0, queue: [] };
-function _artAcquire() {
-  return new Promise(res => {
-    if (_artSemaphore.active < _artSemaphore.max) { _artSemaphore.active++; res(); }
-    else _artSemaphore.queue.push(res);
-  });
-}
-function _artRelease() {
-  if (_artSemaphore.queue.length) { _artSemaphore.queue.shift()(); }
-  else _artSemaphore.active--;
-}
-
-// Active AbortControllers keyed by cache key — lets us cancel in-flight
-// fetches when the user navigates away before they complete.
+// In-flight dedup map
 const _artInflight = new Map();
 
 async function getCoverArt(name, core, debug) {
   const key = core + '::' + name;
+
+  // 1. Memory cache — instant
   if (_artMemCache[key] && !debug) return _artMemCache[key];
 
-  // 1. IndexedDB cache — skipped entirely in debug mode so tests always
-  // reflect the current code, not a stale cached result from before a fix.
+  // 2. IndexedDB cache — persistent across sessions
   if (!debug) {
     try {
       const cached = await dbGet(ART_STORE, key);
       if (cached && cached.manual) { _artMemCache[key] = cached.url; return cached.url; }
-      if (cached && cached.url) { _artMemCache[key] = cached.url; return cached.url; }
+      if (cached && cached.url)    { _artMemCache[key] = cached.url; return cached.url; }
       if (cached && cached.notFound) {
-        const age = Date.now() - (cached.ts || 0);
-        if (age < 7 * 24 * 60 * 60 * 1000) return null;
+        // Retry after 7 days in case IGDB added it
+        if (Date.now() - (cached.ts || 0) < 7 * 24 * 60 * 60 * 1000) return null;
       }
     } catch(e) {}
   } else {
-    console.log('[CoverArt] DEBUG MODE — bypassing cache entirely, testing live');
+    console.log('[CoverArt] DEBUG — bypassing cache, fetching live from IGDB');
   }
 
-  const system = LIBRETRO_SYSTEM[core];
-
-  // Pass the raw name — buildArtUrls needs region tags like (USA) to build correct filenames
   if (!name) return null;
-  const urls = buildArtUrls(system, name);
 
-  if (debug) {
-    console.log('[CoverArt] ─────────────────────────────────────────');
-    console.log('[CoverArt] Raw name:   ', name);
-    console.log('[CoverArt] Display:    ', cleanRomName(name));
-    console.log('[CoverArt] Tags:       ', extractTags(name));
-    console.log('[CoverArt] System:     ', system || '(no mapping for core: ' + core + ')');
-    console.log('[CoverArt] URLs built: ', urls.length);
-    urls.slice(0, 8).forEach((u, i) => console.log(`[CoverArt]   [${i}] ${u}`));
-    if (urls.length > 8) console.log(`[CoverArt]   ... +${urls.length - 8} more`);
-  }
+  // Dedup simultaneous requests for the same game
+  if (_artInflight.has(key)) return _artInflight.get(key);
 
-  if (!urls.length) {
-    if (debug) console.warn('[CoverArt] No URLs — add core "' + core + '" to LIBRETRO_SYSTEM map');
-    return null;
-  }
+  const promise = (async () => {
+    try {
+      // Clean the name for IGDB search
+      let cleanName = name.replace(/\.[^.]+$/, '');
+      cleanName = cleanName.replace(/\s*[\(\[][^)\]]*[\)\]]/g, '');
+      cleanName = cleanName.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+      cleanName = cleanName.replace(/[\/\\<>|#%{}$!@`=+]/g, '').trim();
+      if (!cleanName) return null;
 
-  // Cancel any previous in-flight fetch for this key
-  if (_artInflight.has(key)) { _artInflight.get(key).abort(); }
-  const controller = new AbortController();
-  _artInflight.set(key, controller);
+      if (debug) console.log('[CoverArt] Searching IGDB for:', cleanName, 'core:', core);
 
-  await _artAcquire();
-  try {
-    for (const url of urls) {
-      if (controller.signal.aborted) break;
-      try {
-        const r = await fetch(url, {
-          signal: AbortSignal.any
-            ? AbortSignal.any([controller.signal, AbortSignal.timeout(6000)])
-            : controller.signal,
-        });
-        if (debug) console.log('[CoverArt]', r.status, url);
-        if (r.ok) {
-          _artMemCache[key] = url;
-          _artInflight.delete(key);
-          try { await dbPut(ART_STORE, { id: key, url, ts: Date.now() }); } catch(e) {}
-          return url;
-        }
-      } catch(e) {
-        if (e.name === 'AbortError') break;
-        if (debug) console.warn('[CoverArt] fetch error:', url, e.message);
+      const params = new URLSearchParams({ name: cleanName, core });
+      const r = await fetch('/cover-art?' + params.toString(), {
+        signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined,
+      });
+
+      if (debug) console.log('[CoverArt] worker status:', r.status, 'for:', cleanName);
+
+      if (r.ok) {
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        _artMemCache[key] = url;
+        // Mark as found in IDB — re-fetches blob URL on next session (blob URLs don't survive reload)
+        try { await dbPut(ART_STORE, { id: key, hasArt: true, ts: Date.now() }); } catch(e) {}
+        return url;
+      } else {
+        if (debug) console.warn('[CoverArt] not found for:', cleanName, 'status:', r.status);
+        try { await dbPut(ART_STORE, { id: key, notFound: true, ts: Date.now() }); } catch(e) {}
+        return null;
       }
+    } catch(e) {
+      if (debug) console.warn('[CoverArt] error:', e.message);
+      return null;
+    } finally {
+      _artInflight.delete(key);
     }
-  } finally {
-    _artRelease();
-  }
+  })();
 
-  _artInflight.delete(key);
-  if (debug) console.warn('[CoverArt] No art found anywhere for:', name);
-  try { await dbPut(ART_STORE, { id: key, notFound: true, ts: Date.now() }); } catch(e) {}
-  return null;
+  _artInflight.set(key, promise);
+  return promise;
 }
 
-// Console debug helpers — open DevTools and run these:
-//   debugCoverArt('Street Fighter II Turbo (USA).sfc', 'snes')
-//   debugArtUrls('Street Fighter II Turbo (USA).sfc', 'snes')
-//   debugSlug('Adventures of Batman & Robin, The (USA)')
+// Console debug helper: debugCoverArt('Super Mario World (USA).sfc', 'snes')
 window.debugCoverArt = (name, core) => getCoverArt(name, core, true);
-window.debugArtUrls  = (name, core) => { const u = buildArtUrls(LIBRETRO_SYSTEM[core], name); console.log(u); return u; };
-window.debugSlug     = (name) => ({ display: cleanRomName(name), tags: extractTags(name), filename: toLibretroFilename(cleanRomName(name)) });
 
 // Manually set cover art for a game — always wins, never expires, never re-fetched
 async function setManualCoverArt(name, core, url) {
@@ -5779,7 +5643,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260804081527';
+const APP_VERSION = '20260804200925';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6156,11 +6020,14 @@ async function restorePrefsFromCloud() {
     }
     // Custom theme
     if (p.customTheme) {
-      localStorage.setItem('rp-custom-theme', JSON.stringify(p.customTheme));
+      const s = JSON.stringify(p.customTheme);
+      localStorage.setItem('rp-custom-theme', s);
+      await prefSet('rp-custom-theme', s);
     }
     // Theme — restore after custom theme so vars are available
     if (p.theme) {
       localStorage.setItem('rp-theme', p.theme);
+      await prefSet('rp-theme', p.theme);
       applyTheme(p.theme, true);
     }
     // Lib sort

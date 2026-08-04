@@ -182,6 +182,128 @@ async function handleCheckPremium(request, env) {
 }
 
 // ══════════════════════════════════════════════════════
+// IGDB Cover Art — proxied server-side, Cloudflare cached
+// ══════════════════════════════════════════════════════
+
+// EmulatorJS core → IGDB platform ID
+const IGDB_PLATFORM = {
+  nes:           18,
+  snes:          19,
+  gba:           24,
+  gb:            33,
+  gbc:           22,
+  n64:           4,
+  nds:           20,
+  vb:            87,
+  ws:            57,
+  wsc:           57,
+  segaMD:        29,
+  sega32x:       30,
+  segaGG:        35,
+  segaMS:        64,
+  segaCD:        78,
+  saturn:        32,
+  psx:           7,
+  ppsspp:        38,
+  pce:           86,
+  ngp:           119,
+  neogeo:        80,
+  a2600:         59,
+  lynx:          61,
+  coleco:        68,
+  msx:           27,
+  intellivision: 67,
+  vectrex:       71,
+};
+
+// In-memory IGDB token cache
+let _igdbToken = null;
+let _igdbTokenExpiry = 0;
+
+async function getIgdbToken(env) {
+  if (_igdbToken && Date.now() < _igdbTokenExpiry - 60000) return _igdbToken;
+  const r = await fetch(
+    `https://id.twitch.tv/oauth2/token?client_id=${env.IGDB_CLIENT_ID}&client_secret=${env.IGDB_CLIENT_SECRET}&grant_type=client_credentials`,
+    { method: 'POST' }
+  );
+  if (!r.ok) throw new Error('IGDB token fetch failed: ' + r.status);
+  const data = await r.json();
+  _igdbToken = data.access_token;
+  _igdbTokenExpiry = Date.now() + (data.expires_in * 1000);
+  return _igdbToken;
+}
+
+async function handleCoverArt(request, env) {
+  if (request.method === 'OPTIONS') return cors204();
+  if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET)
+    return json({ error: 'IGDB not configured' }, 500);
+
+  const url = new URL(request.url);
+  const name = url.searchParams.get('name');
+  const core = url.searchParams.get('core');
+  if (!name || !core) return json({ error: 'Missing name or core' }, 400);
+
+  const platformId = IGDB_PLATFORM[core];
+
+  try {
+    const token = await getIgdbToken(env);
+    const headers = {
+      'Client-ID': env.IGDB_CLIENT_ID,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'text/plain',
+    };
+
+    // Clean the name — strip extension and region tags
+    const cleanName = name
+      .replace(/\.[^.]+$/, '')
+      .replace(/\s*[\(\[][^)\]]*[\)\]]/g, '')
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Search IGDB — with platform filter if we have one, fallback without
+    const queries = platformId
+      ? [
+          `search "${cleanName}"; fields name,cover.image_id; where platforms = (${platformId}); limit 3;`,
+          `search "${cleanName}"; fields name,cover.image_id; limit 3;`,
+        ]
+      : [`search "${cleanName}"; fields name,cover.image_id; limit 3;`];
+
+    let imageId = null;
+    for (const query of queries) {
+      const r = await fetch('https://api.igdb.com/v4/games', {
+        method: 'POST', headers, body: query,
+      });
+      if (!r.ok) continue;
+      const games = await r.json();
+      const game = games.find(g => g.cover?.image_id);
+      if (game) { imageId = game.cover.image_id; break; }
+    }
+
+    if (!imageId) return json({ error: 'Not found' }, 404);
+
+    // Fetch the actual cover image and stream it back
+    // cover_big = 264x374, 720p = 720x1024
+    const imgUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big/${imageId}.jpg`;
+    const imgRes = await fetch(imgUrl);
+    if (!imgRes.ok) return json({ error: 'Image fetch failed' }, 502);
+
+    return new Response(imgRes.body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=2592000', // 30 days
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+
+  } catch(e) {
+    console.error('[cover-art]', e.message);
+    return json({ error: 'Internal error' }, 500);
+  }
+}
+
+// ══════════════════════════════════════════════════════
 // Router
 // ══════════════════════════════════════════════════════
 export default {
@@ -196,6 +318,9 @@ export default {
 
     if (pathname === '/check-premium')
       return handleCheckPremium(request, env);
+
+    if (pathname === '/cover-art')
+      return handleCoverArt(request, env);
 
     return env.ASSETS.fetch(request);
   }
