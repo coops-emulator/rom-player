@@ -6560,31 +6560,25 @@ async function _processRedeem(inp) {
 }
 
 // ── Admin: generate a new redeem code on demand ───────────────────────────
-// Usage from browser console (when signed in as you):  generateRedeemCode()
-// Prints the plaintext code to console AND inserts the hash into Supabase.
-// Each code is single-use. Call as many times as you like.
+// Run this in Terminal (NOT the browser) — it needs the service key:
+//
+//   node -e "
+//   const crypto = require('crypto');
+//   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+//   const seg = () => Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+//   const code = 'COOPS-' + seg() + '-' + seg() + '-' + seg();
+//   const hash = crypto.createHash('sha256').update(code).digest('hex');
+//   console.log('Code:', code);
+//   console.log('Hash:', hash);
+//   "
+//
+// Then insert the hash into Supabase SQL editor:
+//   insert into public.redeem_codes (code_hash) values ('PASTE_HASH_HERE');
+//
+// Each code is single-use. Generate a new one each time you need one.
 window.generateRedeemCode = async function() {
-  if (!_supabase) return console.error('[Admin] Supabase not ready');
-
-  // Generate COOPS-XXXX-XXXX-XXXX format
-  const seg = () => Math.random().toString(36).slice(2, 6).toUpperCase();
-  const code = `COOPS-${seg()}-${seg()}-${seg()}`;
-  const hash = await _sha256(code);
-
-  // Insert into redeem_codes via Supabase anon key
-  // RLS must allow INSERT for authenticated users — or use service key in edge fn
-  const { error } = await _supabase
-    .from('redeem_codes')
-    .insert({ code_hash: hash });
-
-  if (error) {
-    console.error('[Admin] Failed to insert code:', error.message);
-    return null;
-  }
-
-  console.log('%c✅ Redeem code generated:', 'color:lime;font-weight:bold', code);
-  console.log('Hash stored:', hash);
-  return code;
+  console.log('%c⚠️ Generate codes in Terminal, not the browser.', 'color:orange;font-weight:bold');
+  console.log('See the comment above generateRedeemCode in index.html for the Terminal command.');
 };
 
 async function _sha256(str) {
