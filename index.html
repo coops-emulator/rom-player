@@ -5779,7 +5779,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260804014837';
+const APP_VERSION = '20260804044638';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6538,7 +6538,7 @@ async function _processRedeem(inp) {
   const hash = await _sha256(code);
 
   try {
-    const r = await fetch('https://romplayerbycoops.pages.dev/functions/redeem-code', {
+    const r = await fetch('/functions/redeem-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codeHash: hash, userId: _currentUser.id })
@@ -6549,7 +6549,8 @@ async function _processRedeem(inp) {
       if (r.status === 409) return showToast('❌ This code has already been used');
       return showToast('❌ ' + (data.error || 'Something went wrong'));
     }
-    _isPremium = true;
+    // Re-read premium status from DB so it persists across sessions
+    await _refreshPremiumState();
     _updatePremiumUI();
     inp.value = '';
     showToast('🎉 Code redeemed! Premium unlocked.');
@@ -6557,6 +6558,34 @@ async function _processRedeem(inp) {
     showToast('Could not redeem — check your connection');
   }
 }
+
+// ── Admin: generate a new redeem code on demand ───────────────────────────
+// Usage from browser console (when signed in as you):  generateRedeemCode()
+// Prints the plaintext code to console AND inserts the hash into Supabase.
+// Each code is single-use. Call as many times as you like.
+window.generateRedeemCode = async function() {
+  if (!_supabase) return console.error('[Admin] Supabase not ready');
+
+  // Generate COOPS-XXXX-XXXX-XXXX format
+  const seg = () => Math.random().toString(36).slice(2, 6).toUpperCase();
+  const code = `COOPS-${seg()}-${seg()}-${seg()}`;
+  const hash = await _sha256(code);
+
+  // Insert into redeem_codes via Supabase anon key
+  // RLS must allow INSERT for authenticated users — or use service key in edge fn
+  const { error } = await _supabase
+    .from('redeem_codes')
+    .insert({ code_hash: hash });
+
+  if (error) {
+    console.error('[Admin] Failed to insert code:', error.message);
+    return null;
+  }
+
+  console.log('%c✅ Redeem code generated:', 'color:lime;font-weight:bold', code);
+  console.log('Hash stored:', hash);
+  return code;
+};
 
 async function _sha256(str) {
   const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
