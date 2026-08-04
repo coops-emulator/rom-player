@@ -144,6 +144,44 @@ async function handleRedeemCode(request, env) {
 }
 
 // ══════════════════════════════════════════════════════
+// Check premium — service key bypasses RLS entirely
+// ══════════════════════════════════════════════════════
+async function handleCheckPremium(request, env) {
+  if (request.method === 'OPTIONS') return cors204();
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (!env.SUPABASE_SERVICE_KEY) return json({ error: 'Misconfigured' }, 500);
+
+  let userId;
+  try { ({ userId } = await request.json()); }
+  catch (_) { return json({ error: 'Invalid JSON' }, 400); }
+  if (!userId) return json({ error: 'Missing userId' }, 400);
+
+  const sb = {
+    'Content-Type': 'application/json',
+    'apikey': env.SUPABASE_SERVICE_KEY,
+    'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+  };
+
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=is_premium&limit=1`,
+    { headers: sb }
+  );
+  const rows = await r.json();
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    // Profile doesn't exist yet — create it
+    await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+      method: 'POST',
+      headers: { ...sb, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ id: userId, is_premium: false }),
+    });
+    return json({ is_premium: false });
+  }
+
+  return json({ is_premium: rows[0].is_premium || false });
+}
+
+// ══════════════════════════════════════════════════════
 // Router
 // ══════════════════════════════════════════════════════
 export default {
@@ -155,6 +193,9 @@ export default {
 
     if (pathname === '/redeem-code' || pathname === '/functions/redeem-code')
       return handleRedeemCode(request, env);
+
+    if (pathname === '/check-premium')
+      return handleCheckPremium(request, env);
 
     return env.ASSETS.fetch(request);
   }

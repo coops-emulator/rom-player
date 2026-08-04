@@ -5779,7 +5779,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260804044638';
+const APP_VERSION = '20260804081527';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6083,37 +6083,24 @@ function initSupabase() {
 }
 
 async function _refreshPremiumState() {
-  if (!_currentUser || !_supabase) { _isPremium = false; return; }
+  if (!_currentUser) { _isPremium = false; return; }
   try {
-    const { data, error } = await _supabase
-      .from('profiles')
-      .select('is_premium')
-      .eq('id', _currentUser.id)
-      .single();
-    if (error) {
-      console.warn('[Auth] _refreshPremiumState error:', error.message, error.code);
-      // PGRST116 = no rows found — profile may not exist yet
-      if (error.code === 'PGRST116') {
-        _isPremium = false;
-        return;
-      }
-      // Any other error — retry once after 1s (session may not be attached yet)
-      await new Promise(r => setTimeout(r, 1000));
-      const retry = await _supabase
-        .from('profiles')
-        .select('is_premium')
-        .eq('id', _currentUser.id)
-        .single();
-      _isPremium = retry.data?.is_premium || false;
-      console.log('[Auth] retry is_premium:', _isPremium);
-      return;
+    // Use worker endpoint with service key — bypasses RLS completely
+    const r = await fetch('/check-premium', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: _currentUser.id }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      _isPremium = data.is_premium || false;
+    } else {
+      _isPremium = false;
     }
-    _isPremium = data?.is_premium || false;
     console.log('[Auth] is_premium:', _isPremium);
     // Trigger cloud restore on first sign-in for the session
     if (!_cloudRestoreDone) {
       _cloudRestoreDone = true;
-      // Restore prefs first (theme, username, etc) — then library data
       setTimeout(() => restorePrefsFromCloud(), 800);
       if (_isPremium) setTimeout(() => restoreLibraryFromCloud(), 1500);
     }
