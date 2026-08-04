@@ -2666,6 +2666,7 @@ function applyTheme(id, fromStartup) {
   _currentTheme = id;
   localStorage.setItem('rp-theme', id);
   renderThemesGrid();
+  savePrefsToCloud();
   // Auto-close premium panel after selection
   if (t && t.premium) setPremiumPanelOpen(false);
 }
@@ -2775,24 +2776,10 @@ function openCustomThemeEditor() {
   const ct = _loadCustomTheme() || { name: 'My Theme', bg: '#0e0e14', accent: '#7c6af7' };
 
   editor.innerHTML = `
-    <div class="cte-section-label" style="font-size:11px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Customise your theme</div>
+    <div class="cte-section-label" style="font-size:11px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Customise your theme</div>
     <input class="cte-name-input" id="cte-name" type="text" maxlength="20" placeholder="Theme name" value="${ct.name}">
-    <div class="cte-color-row">
-      <span class="cte-color-label">Background</span>
-      <div class="cte-color-pick">
-        <div class="cte-swatch" id="cte-swatch-bg" style="background:${ct.bg}" onclick="document.getElementById('cte-pick-bg').click()"></div>
-        <input class="cte-hex" id="cte-hex-bg" type="text" maxlength="7" value="${ct.bg}" oninput="onCteHexInput('bg')">
-        <input type="color" id="cte-pick-bg" value="${ct.bg}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" oninput="onCtePickerInput('bg')">
-      </div>
-    </div>
-    <div class="cte-color-row">
-      <span class="cte-color-label">Accent colour</span>
-      <div class="cte-color-pick">
-        <div class="cte-swatch" id="cte-swatch-accent" style="background:${ct.accent}" onclick="document.getElementById('cte-pick-accent').click()"></div>
-        <input class="cte-hex" id="cte-hex-accent" type="text" maxlength="7" value="${ct.accent}" oninput="onCteHexInput('accent')">
-        <input type="color" id="cte-pick-accent" value="${ct.accent}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" oninput="onCtePickerInput('accent')">
-      </div>
-    </div>
+    ${_buildColorPicker('bg', 'Background', ct.bg)}
+    ${_buildColorPicker('accent', 'Accent colour', ct.accent)}
     <div class="cte-actions">
       <button class="rx-btn accent" onclick="saveCustomTheme()" style="flex:1">Save theme</button>
       <button class="rx-btn" onclick="document.getElementById('custom-theme-editor').classList.remove('open')" style="flex:1">Cancel</button>
@@ -2800,8 +2787,92 @@ function openCustomThemeEditor() {
 
   editor.classList.add('open');
 
-  // Live preview as user picks
+  // Wire up sliders after DOM is built
+  ['bg','accent'].forEach(field => {
+    _syncSliderFromHex(field, ct[field === 'bg' ? 'bg' : 'accent']);
+    document.getElementById('cte-hue-'+field).addEventListener('input', () => _onSliderChange(field));
+    document.getElementById('cte-sat-'+field).addEventListener('input', () => _onSliderChange(field));
+    document.getElementById('cte-lit-'+field).addEventListener('input', () => _onSliderChange(field));
+  });
+
   _livePreviewCustom(ct.bg, ct.accent);
+}
+
+function _buildColorPicker(field, label, hex) {
+  return `<div style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text);font-weight:600">${label}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="cte-swatch-${field}" style="width:28px;height:28px;border-radius:7px;background:${hex};border:2px solid rgba(255,255,255,.15);cursor:pointer;flex-shrink:0" onclick="document.getElementById('cte-pick-${field}').click()"></div>
+        <input class="cte-hex" id="cte-hex-${field}" type="text" maxlength="7" value="${hex}" oninput="onCteHexInput('${field}')">
+        <input type="color" id="cte-pick-${field}" value="${hex}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none" oninput="onCtePickerInput('${field}')">
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--muted);width:22px;text-align:right">Hue</span>
+        <input type="range" id="cte-hue-${field}" min="0" max="360" value="0" style="flex:1;accent-color:${hex}">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--muted);width:22px;text-align:right">Sat</span>
+        <input type="range" id="cte-sat-${field}" min="0" max="100" value="50" style="flex:1;accent-color:${hex}">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--muted);width:22px;text-align:right">Light</span>
+        <input type="range" id="cte-lit-${field}" min="2" max="92" value="20" style="flex:1;accent-color:${hex}">
+      </div>
+    </div>
+  </div>`;
+}
+
+// Convert hex → HSL, set slider positions
+function _syncSliderFromHex(field, hex) {
+  const rgb = _hexToRgb(hex);
+  if (!rgb) return;
+  const [h, s, l] = _rgbToHsl(...rgb);
+  const hSlider = document.getElementById('cte-hue-'+field);
+  const sSlider = document.getElementById('cte-sat-'+field);
+  const lSlider = document.getElementById('cte-lit-'+field);
+  if (hSlider) hSlider.value = Math.round(h);
+  if (sSlider) sSlider.value = Math.round(s);
+  if (lSlider) lSlider.value = Math.round(l);
+}
+
+// Slider moved → update swatch, hex, live preview
+function _onSliderChange(field) {
+  const h = parseFloat(document.getElementById('cte-hue-'+field)?.value || 0);
+  const s = parseFloat(document.getElementById('cte-sat-'+field)?.value || 50);
+  const l = parseFloat(document.getElementById('cte-lit-'+field)?.value || 20);
+  const hex = _hslToHex(h, s, l);
+  const swatch = document.getElementById('cte-swatch-'+field);
+  const hexInp = document.getElementById('cte-hex-'+field);
+  const picker = document.getElementById('cte-pick-'+field);
+  if (swatch) swatch.style.background = hex;
+  if (hexInp) hexInp.value = hex;
+  if (picker) picker.value = hex;
+  _livePreviewFromEditor();
+}
+
+// HSL helpers
+function _hexToRgb(hex) {
+  const n = parseInt((hex||'').replace('#',''), 16);
+  if (isNaN(n)) return null;
+  return [(n>>16)&255, (n>>8)&255, n&255];
+}
+function _rgbToHsl(r, g, b) {
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2;
+  if (max===min) return [0, 0, l*100];
+  const d=max-min, s=l>0.5?d/(2-max-min):d/(max+min);
+  let h;
+  switch(max){case r:h=((g-b)/d+(g<b?6:0))/6;break;case g:h=((b-r)/d+2)/6;break;default:h=((r-g)/d+4)/6;}
+  return [h*360, s*100, l*100];
+}
+function _hslToHex(h, s, l) {
+  s/=100; l/=100;
+  const a=s*Math.min(l,1-l);
+  const f=n=>{const k=(n+h/30)%12;return l-a*Math.max(Math.min(k-3,9-k,1),-1);};
+  return '#'+[f(0),f(8),f(4)].map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
 }
 
 function onCtePickerInput(field) {
@@ -2810,6 +2881,7 @@ function onCtePickerInput(field) {
   const swatch = document.getElementById('cte-swatch-' + field);
   if (hex) hex.value = val;
   if (swatch) swatch.style.background = val;
+  _syncSliderFromHex(field, val);
   _livePreviewFromEditor();
 }
 
@@ -2820,6 +2892,7 @@ function onCteHexInput(field) {
   const swatch = document.getElementById('cte-swatch-' + field);
   if (picker) picker.value = hex;
   if (swatch) swatch.style.background = hex;
+  _syncSliderFromHex(field, hex);
   _livePreviewFromEditor();
 }
 
@@ -2853,6 +2926,7 @@ function saveCustomTheme() {
   document.documentElement.removeAttribute('data-theme');
   _applyCustomVars(_deriveCustomVars(bg, accent));
   showToast('✓ Theme saved — ' + name);
+  savePrefsToCloud();
   renderThemesGrid();
   // Close editor after save
   const editor = document.getElementById('custom-theme-editor');
@@ -3801,6 +3875,7 @@ _storageReadyPromise.then(async () => {
 function setLibSort(s) {
   _libSort = s;
   prefSet('rp-lib-sort', s);
+  savePrefsToCloud();
   document.querySelectorAll('.lib-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === s));
   renderLibraryList();
 }
@@ -4119,6 +4194,7 @@ function setUsername(name) {
   if (!trimmed) return false;
   window._cachedUsername = trimmed;
   prefSet('rp-username', trimmed);
+  savePrefsToCloud();
   return true;
 }
 
@@ -5703,12 +5779,14 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260803221607';
+const APP_VERSION = '20260804014837';
 
 // VERSION_URL: source of truth for checking whether an update is available.
-// The actual update is a cache-bust reload — Cloudflare Pages serves fresh files.
+// We check our own Cloudflare domain first — instant and always in sync with what's live.
+// GitHub raw is a fallback only (can be ~2 days stale if not pushed).
+const VERSION_URL_CF = '/version.json';
 const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/coops-emulator/rom-player/main/';
-const VERSION_URL     = GITHUB_RAW_BASE + 'version.json';
+const VERSION_URL_GH  = GITHUB_RAW_BASE + 'version.json';
 let _latestVersion = null;
 let _updateCheckInProgress = false;
 
@@ -5810,10 +5888,20 @@ async function checkForUpdates(manual) {
   const label = document.getElementById('app-version-label');
   if (btn) btn.textContent = 'Checking…';
   try {
-    const r = await fetch(VERSION_URL + '?t=' + Date.now(), {
-      cache: 'no-store', signal: AbortSignal.timeout(5000)
-    });
-    if (!r.ok) throw new Error('fetch failed');
+    // Try our own domain first — fastest, always matches what's actually deployed.
+    let r;
+    try {
+      r = await fetch(VERSION_URL_CF + '?t=' + Date.now(), {
+        cache: 'no-store', signal: AbortSignal.timeout(4000)
+      });
+      if (!r.ok) throw new Error('cf failed');
+    } catch(_) {
+      // Fallback: GitHub raw (may lag by a day or two after deploy)
+      r = await fetch(VERSION_URL_GH + '?t=' + Date.now(), {
+        cache: 'no-store', signal: AbortSignal.timeout(5000)
+      });
+      if (!r.ok) throw new Error('fetch failed');
+    }
     const data = await r.json();
     _latestVersion = data.version;
     if (label) label.textContent = 'v' + APP_VERSION +
@@ -6023,9 +6111,11 @@ async function _refreshPremiumState() {
     _isPremium = data?.is_premium || false;
     console.log('[Auth] is_premium:', _isPremium);
     // Trigger cloud restore on first sign-in for the session
-    if (_isPremium && !_cloudRestoreDone) {
+    if (!_cloudRestoreDone) {
       _cloudRestoreDone = true;
-      setTimeout(() => restoreLibraryFromCloud(), 1500);
+      // Restore prefs first (theme, username, etc) — then library data
+      setTimeout(() => restorePrefsFromCloud(), 800);
+      if (_isPremium) setTimeout(() => restoreLibraryFromCloud(), 1500);
     }
   } catch(e) {
     console.warn('[Auth] _refreshPremiumState exception:', e);
@@ -6033,6 +6123,71 @@ async function _refreshPremiumState() {
   }
 }
 let _cloudRestoreDone = false;
+
+/* ══ CLOUD PREFS SYNC ══════════════════════════════════
+   Saves username, theme, custom theme, lib sort, and
+   favourites into profiles.user_prefs (JSONB).
+   Works for ALL logged-in users (free + premium).
+   Supabase RLS ensures users can only read/write their own row.
+════════════════════════════════════════════════════ */
+async function savePrefsToCloud() {
+  if (!_currentUser || !_supabase) return;
+  try {
+    const customThemeRaw = localStorage.getItem('rp-custom-theme');
+    const prefs = {
+      theme:       localStorage.getItem('rp-theme') || 'default',
+      customTheme: customThemeRaw ? JSON.parse(customThemeRaw) : null,
+      libSort:     _libSort || 'lastPlayed',
+      username:    window._cachedUsername || null,
+      savedAt:     Date.now(),
+    };
+    await _supabase.from('profiles').upsert({
+      id: _currentUser.id,
+      user_prefs: prefs,
+    }, { onConflict: 'id' });
+  } catch(e) {
+    console.warn('[Prefs] savePrefsToCloud failed:', e);
+  }
+}
+
+async function restorePrefsFromCloud() {
+  if (!_currentUser || !_supabase) return;
+  try {
+    const { data, error } = await _supabase
+      .from('profiles')
+      .select('user_prefs')
+      .eq('id', _currentUser.id)
+      .single();
+    if (error || !data?.user_prefs) return;
+    const p = data.user_prefs;
+    // Username
+    if (p.username && !window._cachedUsername) {
+      window._cachedUsername = p.username;
+      await prefSet('rp-username', p.username);
+      const inp = document.getElementById('username-input');
+      if (inp) inp.value = p.username;
+    }
+    // Custom theme
+    if (p.customTheme) {
+      localStorage.setItem('rp-custom-theme', JSON.stringify(p.customTheme));
+    }
+    // Theme — restore after custom theme so vars are available
+    if (p.theme) {
+      localStorage.setItem('rp-theme', p.theme);
+      applyTheme(p.theme, true);
+    }
+    // Lib sort
+    if (p.libSort) {
+      _libSort = p.libSort;
+      await prefSet('rp-lib-sort', p.libSort);
+      const sortSel = document.getElementById('lib-sort-select');
+      if (sortSel) sortSel.value = p.libSort;
+    }
+    console.log('[Prefs] Cloud prefs restored');
+  } catch(e) {
+    console.warn('[Prefs] restorePrefsFromCloud failed:', e);
+  }
+}
 
 function _updatePremiumUI() {
   const loggedOut = document.getElementById('signin-logged-out');
