@@ -5680,7 +5680,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260805045902';
+const APP_VERSION = '20260805072816';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6004,6 +6004,7 @@ async function _refreshPremiumState() {
       _cloudRestoreDone = true;
       setTimeout(() => restorePrefsFromCloud(), 800);
       if (_isPremium) setTimeout(() => restoreLibraryFromCloud(), 1500);
+      if (_isPremium) setTimeout(() => restoreSaveStatesFromCloud(), 2200);
     }
     // Always push any local pref changes to cloud on login
     // so that changes made offline sync up when connection restored
@@ -6269,6 +6270,50 @@ async function syncSaveStates() {
   }
 }
 
+async function restoreSaveStatesFromCloud() {
+  if (!_isPremium || !_currentUser || !_supabase) return;
+  try {
+    const { data, error } = await _supabase
+      .from('save_states')
+      .select('*')
+      .eq('user_id', _currentUser.id);
+    if (error || !data || !data.length) return;
+    let restored = 0;
+    for (const row of data) {
+      const existing = await dbGet(SS_STORE, row.save_key).catch(() => null);
+      // Only pull a save down if we don't have it locally, or the cloud copy is newer
+      if (existing && (existing.ts || 0) >= (row.ts || 0)) continue;
+      if (!row.data_b64) continue;
+      let bytes;
+      try {
+        const bin = atob(row.data_b64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      } catch(e) { continue; }
+      const opfsFilename = 'ss_' + String(row.save_key).replace(/[^a-zA-Z0-9_]/g,'_') + '.bin';
+      let savedToOpfs = false;
+      try { await opfsWrite(opfsFilename, bytes.buffer); savedToOpfs = true; } catch(e) {}
+      await dbPut(SS_STORE, {
+        id: row.save_key,
+        game: row.game,
+        slot: row.slot,
+        ts: row.ts,
+        img: row.img || null,
+        opfsFilename: savedToOpfs ? opfsFilename : null,
+        data: savedToOpfs ? null : Array.from(bytes),
+      });
+      restored++;
+    }
+    if (restored > 0) {
+      showToast(`☁️ Restored ${restored} save state${restored===1?'':'s'} from cloud`);
+      renderSlots();
+    }
+    console.log('[Sync] Save states restored:', restored);
+  } catch(e) {
+    console.warn('[Sync] Save state restore failed:', e);
+  }
+}
+
 /* ══ PLAY STATS DASHBOARD (Premium) ══════════════════ */
 async function renderStatsDashboard() {
   const el = document.getElementById('stats-dashboard');
@@ -6498,23 +6543,6 @@ window.generateRedeemCode = async function() {
 async function _sha256(str) {
   const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-// ── Cloud save sync (stub — expands when ROM storage is added) ────
-async function syncSaveStates() {
-  if (!_currentUser || !_isPremium) return;
-  const label = document.getElementById('sync-status-label');
-  if (label) label.textContent = 'Syncing…';
-  try {
-    // Pull local save states and push to Supabase
-    // Full implementation added when ROM storage linking is built
-    await new Promise(r => setTimeout(r, 800)); // placeholder
-    if (label) label.textContent = 'Last synced: just now ✓';
-    showToast('☁️ Saves synced');
-  } catch(e) {
-    if (label) label.textContent = 'Sync failed — try again';
-    showToast('Sync failed');
-  }
 }
 
 function openSubscribePage() {
