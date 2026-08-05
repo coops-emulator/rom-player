@@ -4634,10 +4634,19 @@ document.getElementById('rx-file-inp').addEventListener('change', e => {
 
 /* ══ FILE HANDLING ═══════════════════════════════════ */
 const dz = document.getElementById('dz');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); }, { passive: false });
+dz.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); dz.classList.add('drag'); }, { passive: false });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag'), { passive: true });
-dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); }, { passive: false });
+dz.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); }, { passive: false });
 document.getElementById('file-inp').addEventListener('change', e => handleFile(e.target.files[0]));
+
+// Without these, a drop that lands even a pixel outside the drop zone
+// (or misses it on a touch/trackpad drag) falls through to the browser's
+// default behaviour, which is to navigate the whole page away to display
+// the raw ROM file — killing the app and making it look like drag & drop
+// "doesn't work" at all. Catch drops anywhere on the page and swallow them
+// unless they were already handled by the drop zone above.
+window.addEventListener('dragover', e => { e.preventDefault(); }, { passive: false });
+window.addEventListener('drop', e => { e.preventDefault(); }, { passive: false });
 
 function showErr(msg) {
   const el = document.getElementById('err');
@@ -5654,7 +5663,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260805025139';
+const APP_VERSION = '20260805045313';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
