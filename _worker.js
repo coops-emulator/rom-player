@@ -192,6 +192,7 @@ const IGDB_PLATFORM = {
   gba:           24,
   gb:            33,
   gbc:           22,
+  gambatte:      33,  // gambatte core covers both GB (33) and GBC (22) — default to GB platform
   n64:           4,
   nds:           20,
   vb:            87,

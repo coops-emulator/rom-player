@@ -5278,8 +5278,7 @@ function cleanup() {
 }
 
 async function goBack() {
-  // Cancel any in-flight cover art fetches — frees network slots immediately
-  _artInflight.forEach(c => c.abort());
+  // Clear any in-flight cover art fetch promises
   _artInflight.clear();
   await _savePlayTime();
   cleanup();
@@ -5655,7 +5654,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260805011414';
+const APP_VERSION = '20260805025139';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.

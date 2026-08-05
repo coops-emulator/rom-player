@@ -24,6 +24,12 @@ const NETWORK_FIRST = [
 const SKIP_CACHE_HOSTS = [
   'api.thegamesdb.net',
   '0.peerjs.com',
+  'supabase.co',
+  'dropboxapi.com',
+  'dropbox.com',
+  'api.twitch.tv',
+  'api.igdb.com',
+  'id.twitch.tv',
 ];
 
 self.addEventListener('install', event => {
