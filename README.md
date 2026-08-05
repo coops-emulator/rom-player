@@ -42,18 +42,24 @@ A browser-based retro gaming PWA. Drop in a ROM, hit play — no installs, no ex
 ## Features
 
 **Core**
+- Drag-and-drop or tap-to-browse ROM loading, right from the home screen
 - Save states — save and load anytime
 - Rewind — per-core tuned (PS1: 512MB buffer, GBA/SNES: 256MB)
-- Cover art — auto-fetched via libretro thumbnail CDN
+- Cover art — auto-fetched via IGDB, proxied and edge-cached through a Cloudflare Worker
 - Fullscreen — native + pseudo-fullscreen with iPhone notch support
 - Gamepad support — plug in a controller and go
 - Keyboard shortcuts — press `?` in-app for the cheat sheet
 - Offline play — full PWA with service worker caching
+- First-run walkthrough and a "what's new" prompt after updates
 
 **Library**
 - ROM library with metadata stored in IndexedDB
 - ROM binaries stored in OPFS for fast local access
 - Playtime tracking and game history
+- "Jump back in" hero banner + recently played strip on the home screen
+- Duplicate detection — flags a likely-same game already in your library
+  (by cleaned name + system) and asks before replacing it, so nothing is
+  ever overwritten silently
 
 **BIOS Management**
 - Upload and store BIOS files locally (OPFS)
@@ -61,12 +67,13 @@ A browser-based retro gaming PWA. Drop in a ROM, hit play — no installs, no ex
 - Optional: NDS, PSP
 
 **Themes**
-- Deep Space (default)
-- NES, SNES, Game Boy, N64, Genesis, GBA, PS1
+- Free: Deep Space (default), NES, SNES, Game Boy, N64, Genesis, GBA, PS1
+- Premium: DOOM, Dreamcast, Cyber Neon, Virtual Boy, GBA SP Cobalt, Sega Saturn, Neo Geo MVS, Famicom Disk
+- Custom theme builder — pick your own background + accent colour
 
-**ROM Exchange**
-- P2P ROM sharing between users via PeerJS
-- No server — direct peer-to-peer
+**Linkup Room (ROM Exchange)**
+- P2P ROM sharing between users via PeerJS — no server, direct peer-to-peer
+- Premium hosts can set a room password to keep their room invite-only
 
 ---
 
@@ -75,24 +82,28 @@ A browser-based retro gaming PWA. Drop in a ROM, hit play — no installs, no ex
 | Feature | Free | Premium |
 |---|---|---|
 | Play ROMs | ✅ | ✅ |
-| Save states | ✅ | ✅ |
+| Save states | 3 slots | 10 slots + screenshot thumbnails |
 | Rewind | ✅ | ✅ |
 | Cover art | ✅ | ✅ |
-| ROM Exchange | ✅ | ✅ |
+| Themes | 8 | 8 free + 8 exclusive |
+| Linkup Room / ROM Exchange | ✅ | ✅, + room passwords |
+| Play stats dashboard | ❌ | ✅ |
 | Cloud save sync | ❌ | ✅ |
 | Library sync across devices | ❌ | ✅ |
-| Cloud ROM storage (Drive/Dropbox) | ❌ | ✅ |
+| Cloud ROM storage (Dropbox) | ❌ | ✅ |
 
-Premium is **$3 AUD/month** — or by invite code.
+Premium is **$3 AUD/month** via Stripe — or unlocked permanently with a one-time, single-use redeem code.
 
 ---
 
 ## Tech Stack
 
 - **EmulatorJS** (libretro cores) — local `./data/` with CDN fallback
-- **PeerJS** — P2P ROM Exchange
-- **Supabase** — auth + user profiles + premium status
-- **Cloudflare Pages** — hosting + edge functions
+- **PeerJS** — P2P ROM Exchange / Linkup Room
+- **Supabase** — auth, user profiles, premium status, redeem codes
+- **Stripe** — premium subscription billing, synced to Supabase via webhook
+- **Cloudflare Pages + `_worker.js`** — hosting, edge routing, Dropbox OAuth proxy, redeem-code handling, and an IGDB cover-art proxy (edge-cached 30 days)
+- **Dropbox API** — optional cloud ROM storage + save upload for premium users
 - **IndexedDB + OPFS** — local ROM and save state storage
 - **Service Worker** — offline support + PWA caching
 
@@ -111,7 +122,7 @@ Version timestamps are generated at deploy time (`YYYYMMDDHHMMSS` UTC) and writt
 
 ## Notes
 
-- ROM files are never uploaded to any server — everything stays on your device
+- By default, ROM files are never uploaded anywhere — everything stays on your device. Premium users may opt in to Dropbox for cloud ROM storage; nothing is sent off-device otherwise
 - BIOS files are stored locally in OPFS, never transmitted
 - Premium validation is handled server-side via Cloudflare Workers + Supabase
 
