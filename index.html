@@ -2426,11 +2426,12 @@ body.game-active .wrap {
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════ */
 const SYS = {
   nes:  { core:'nes',          label:'NES',           bg:'#1e3a5f', fg:'#7ec8f7' },
+  snes: { core:'snes',         label:'SNES',          bg:'#1e3d20', fg:'#7ed97e' },
   smc:  { core:'snes',         label:'SNES',          bg:'#1e3d20', fg:'#7ed97e' },
   sfc:  { core:'snes',         label:'SNES',          bg:'#1e3d20', fg:'#7ed97e' },
   gba:  { core:'gba',          label:'GBA',           bg:'#3d2a1e', fg:'#f4a86a' },
-  gb:   { core:'gb',           label:'Game Boy',      bg:'#2b2b2b', fg:'#b0b0b0' },
-  gbc:  { core:'gbc',          label:'GBC',           bg:'#1c3d1c', fg:'#88e088' },
+  gb:   { core:'gambatte',      label:'Game Boy',      bg:'#2b2b2b', fg:'#b0b0b0' },
+  gbc:  { core:'gambatte',      label:'GBC',           bg:'#1c3d1c', fg:'#88e088' },
   z64:  { core:'n64',          label:'N64',           bg:'#2d1e5f', fg:'#b09af7' },
   n64:  { core:'n64',          label:'N64',           bg:'#2d1e5f', fg:'#b09af7' },
   v64:  { core:'n64',          label:'N64',           bg:'#2d1e5f', fg:'#b09af7' },
@@ -2456,7 +2457,7 @@ const SYS = {
   vec:  { core:'vectrex',      label:'Vectrex',       bg:'#2e1e2a', fg:'#d060c0' },
   pbp:  { core:'ppsspp',       label:'PSP',           bg:'#1a2840', fg:'#5090e0' },
   sat:  { core:'saturn',       label:'Saturn',        bg:'#2a1e40', fg:'#9060e0' },
-  chd:  { core:'saturn',       label:'Saturn',        bg:'#2a1e40', fg:'#9060e0' },
+  chd:  { core:'psx',           label:'PS1',           bg:'#3d1e1e', fg:'#f07070' },
   s32:  { core:'sega32x',      label:'Sega 32X',      bg:'#3d2a1e', fg:'#f0a060' },
   scd:  { core:'segaCD',       label:'Sega CD',       bg:'#1e2e3d', fg:'#60c0f0' },
   neo:  { core:'neogeo',       label:'Neo Geo',       bg:'#3d1e1e', fg:'#f0c060' },
@@ -2496,6 +2497,12 @@ const KB = {
     'Emulator':     [['F5','Quick save'],['F7','Quick load']],
   },
   gbc: {
+    'D-Pad':        [['↑','Up'],['↓','Down'],['←','Left'],['→','Right']],
+    'Face Buttons': [['X','A'],['Z','B']],
+    'System':       [['Enter','Start'],['Shift','Select']],
+    'Emulator':     [['F5','Quick save'],['F7','Quick load']],
+  },
+  gambatte: {
     'D-Pad':        [['↑','Up'],['↓','Down'],['←','Left'],['→','Right']],
     'Face Buttons': [['X','A'],['Z','B']],
     'System':       [['Enter','Start'],['Shift','Select']],
@@ -3539,7 +3546,7 @@ async function promptManualArt(name, core) {
 
 function sysColor(core) {
   return {
-    nes:'#e8232d', snes:'#7b5ea7', gba:'#9040e0', gb:'#8bac0f', gbc:'#44aa44',
+    nes:'#e8232d', snes:'#7b5ea7', gba:'#9040e0', gb:'#8bac0f', gbc:'#44aa44', gambatte:'#8bac0f',
     n64:'#1e90ff', segaMD:'#0060c0', sega32x:'#f0a060', segaGG:'#60a8f0',
     segaMS:'#60a8f0', psx:'#0070d0', pce:'#a088f0', ws:'#d0c080', wsc:'#d0c080',
     vb:'#ff5050', nds:'#7ec8f7', ngp:'#a0d060', a2600:'#d0a060',
@@ -3562,7 +3569,7 @@ function makePlaceholderArt(name, core) {
 }
 
 function sysLabel(core) {
-  return { nes:'NES', snes:'SNES', gba:'GBA', gb:'GB', gbc:'GBC', n64:'N64',
+  return { nes:'NES', snes:'SNES', gba:'GBA', gb:'GB', gbc:'GBC', gambatte:'Game Boy', n64:'N64',
     segaMD:'Genesis', sega32x:'32X', segaGG:'Game Gear', segaMS:'Master System',
     psx:'PS1', pce:'PC Engine', nds:'NDS', a2600:'Atari', neogeo:'Neo Geo',
     ppsspp:'PSP', saturn:'Saturn', segaCD:'Sega CD', lynx:'Lynx', msx:'MSX',
@@ -3574,7 +3581,7 @@ function sysLabel(core) {
 function makeId(name, core) { return core + '::' + name; }
 
 function sysIcon(core) {
-  return { nes:'🕹️', snes:'🎮', gba:'🎮', gb:'🟩', gbc:'🟩', n64:'🎮',
+  return { nes:'🕹️', snes:'🎮', gba:'🎮', gb:'🟩', gbc:'🟩', gambatte:'🟩', n64:'🎮',
     segaMD:'🦔', sega32x:'🦔', segaGG:'📺', segaMS:'📺', psx:'🎮',
     pce:'💿', ws:'📱', wsc:'📱', vb:'🔴', nds:'📱', ngp:'🕹️',
     a2600:'📺', coleco:'🕹️', intellivision:'🕹️', vectrex:'🕹️',
@@ -4785,8 +4792,9 @@ async function launch(romUrl, sys, name, file) {
       gba:  { bufferSize: 256,  granularity: 1  }, // fine grain, long rewind
       snes: { bufferSize: 256,  granularity: 1  },
       nes:  { bufferSize: 128,  granularity: 1  },
-      gb:   { bufferSize: 128,  granularity: 1  },
-      gbc:  { bufferSize: 128,  granularity: 1  },
+      gb:       { bufferSize: 128,  granularity: 1  },
+      gbc:      { bufferSize: 128,  granularity: 1  },
+      gambatte:  { bufferSize: 128,  granularity: 1  },
       segaMD: { bufferSize: 128, granularity: 1 },
       default: { bufferSize: 128, granularity: 2 },
     };
