@@ -233,6 +233,56 @@ async function getIgdbToken(env) {
   return _igdbToken;
 }
 
+// Normalise a game name for fuzzy comparison
+function normaliseName(n) {
+  return n
+    .toLowerCase()
+    .replace(/^(the|a|an)\s+/i, '')      // strip leading articles
+    .replace(/,\s*(the|a|an)$/i, '')     // strip trailing articles
+    .replace(/[^a-z0-9\s]/g, '')         // strip punctuation
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Levenshtein distance for fuzzy matching
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// Score a candidate game name against the query — lower is better
+function matchScore(query, candidate) {
+  const q = normaliseName(query);
+  const c = normaliseName(candidate);
+  if (c === q) return 0;
+  if (c.startsWith(q) || q.startsWith(c)) return 1;
+  if (c.includes(q) || q.includes(c)) return 2;
+  const dist = levenshtein(q, c);
+  const maxLen = Math.max(q.length, c.length);
+  return 3 + (dist / maxLen);
+}
+
+// Clean a raw ROM filename into a search-friendly name
+function cleanForSearch(raw) {
+  let n = raw
+    .replace(/\.[^.]+$/, '')              // strip extension
+    .replace(/\s*[\(\[][^)\]]*[\)\]]/g, '') // strip (tags) [tags]
+    .replace(/\s*#.*$/, '')               // strip # suffixes like "# GBA"
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Strip No-Intro junk characters like [!] [b] etc
+  n = n.replace(/\[.*?\]/g, '').trim();
+  // Normalise roman numeral variants — II→2 etc for search
+  return n;
+}
+
 async function handleCoverArt(request, env) {
   if (request.method === 'OPTIONS') return cors204();
   if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET)
@@ -247,44 +297,57 @@ async function handleCoverArt(request, env) {
 
   try {
     const token = await getIgdbToken(env);
-    const headers = {
+    const igdbHeaders = {
       'Client-ID': env.IGDB_CLIENT_ID,
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'text/plain',
     };
 
-    // Clean the name — strip extension and region tags
-    const cleanName = name
-      .replace(/\.[^.]+$/, '')
-      .replace(/\s*[\(\[][^)\]]*[\)\]]/g, '')
-      .replace(/_/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const cleanName = cleanForSearch(name);
+    if (!cleanName) return json({ error: 'Empty name after cleaning' }, 400);
 
-    // Search IGDB — with platform filter if we have one, fallback without
-    const queries = platformId
-      ? [
-          `search "${cleanName}"; fields name,cover.image_id; where platforms = (${platformId}); limit 3;`,
-          `search "${cleanName}"; fields name,cover.image_id; limit 3;`,
-        ]
-      : [`search "${cleanName}"; fields name,cover.image_id; limit 3;`];
+    // Build search queries — platform-specific first, then broad fallback
+    // Also try article-swapped version: "Legend of Zelda, The" → "The Legend of Zelda"
+    const articleSwap = cleanName.replace(/^(.+),\s*(the|a|an)$/i, '$2 $1').trim();
+    const searchTerms = [...new Set([cleanName, articleSwap])];
 
-    let imageId = null;
+    const queries = [];
+    for (const term of searchTerms) {
+      if (platformId) {
+        queries.push(`search "${term}"; fields name,cover.image_id; where platforms = (${platformId}) & cover != null; limit 5;`);
+      }
+      queries.push(`search "${term}"; fields name,cover.image_id; where cover != null; limit 5;`);
+    }
+
+    let bestImageId = null;
+    let bestScore = Infinity;
+
     for (const query of queries) {
       const r = await fetch('https://api.igdb.com/v4/games', {
-        method: 'POST', headers, body: query,
+        method: 'POST', headers: igdbHeaders, body: query,
       });
       if (!r.ok) continue;
       const games = await r.json();
-      const game = games.find(g => g.cover?.image_id);
-      if (game) { imageId = game.cover.image_id; break; }
+      if (!Array.isArray(games)) continue;
+
+      for (const game of games) {
+        if (!game.cover?.image_id) continue;
+        const score = matchScore(cleanName, game.name || '');
+        if (score < bestScore) {
+          bestScore = score;
+          bestImageId = game.cover.image_id;
+          // Perfect match — stop immediately
+          if (score === 0) break;
+        }
+      }
+      // If we have a near-perfect match (score < 2), stop trying more queries
+      if (bestScore < 2) break;
     }
 
-    if (!imageId) return json({ error: 'Not found' }, 404);
+    if (!bestImageId) return json({ error: 'Not found' }, 404);
 
-    // Fetch the actual cover image and stream it back
-    // cover_big = 264x374, 720p = 720x1024
-    const imgUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big/${imageId}.jpg`;
+    // Return the image directly — Cloudflare caches at edge for 30 days
+    const imgUrl = `https://images.igdb.com/igdb/image/upload/t_cover_big/${bestImageId}.jpg`;
     const imgRes = await fetch(imgUrl);
     if (!imgRes.ok) return json({ error: 'Image fetch failed' }, 502);
 
@@ -292,8 +355,9 @@ async function handleCoverArt(request, env) {
       status: 200,
       headers: {
         'Content-Type': 'image/jpeg',
-        'Cache-Control': 'public, max-age=2592000', // 30 days
+        'Cache-Control': 'public, max-age=2592000',
         'Access-Control-Allow-Origin': '*',
+        'X-Cover-Score': String(bestScore),
       },
     });
 

@@ -3441,61 +3441,65 @@ const _artInflight = new Map();
 async function getCoverArt(name, core, debug) {
   const key = core + '::' + name;
 
-  // 1. Memory cache — instant
+  // 1. Memory cache — instant, survives within session
   if (_artMemCache[key] && !debug) return _artMemCache[key];
 
-  // 2. IndexedDB cache — persistent across sessions
+  // 2. IndexedDB — check what we know about this game
   if (!debug) {
     try {
       const cached = await dbGet(ART_STORE, key);
-      if (cached && cached.manual) { _artMemCache[key] = cached.url; return cached.url; }
-      if (cached && cached.url)    { _artMemCache[key] = cached.url; return cached.url; }
-      if (cached && cached.notFound) {
-        // Retry after 7 days in case IGDB added it
-        if (Date.now() - (cached.ts || 0) < 7 * 24 * 60 * 60 * 1000) return null;
+      if (cached) {
+        // Manual override — always use it
+        if (cached.manual && cached.url) { _artMemCache[key] = cached.url; return cached.url; }
+        // Known to have art — fetch from worker (Cloudflare edge cache serves instantly)
+        if (cached.hasArt) {
+          // Fall through to fetch — don't return null, just skip the notFound check
+        }
+        // Confirmed not found — don't retry for 7 days
+        else if (cached.notFound) {
+          if (Date.now() - (cached.ts || 0) < 7 * 24 * 60 * 60 * 1000) return null;
+        }
       }
     } catch(e) {}
   } else {
-    console.log('[CoverArt] DEBUG — bypassing cache, fetching live from IGDB');
+    console.log('[CoverArt] DEBUG — bypassing notFound cache, fetching live');
   }
 
   if (!name) return null;
 
-  // Dedup simultaneous requests for the same game
+  // 3. Dedup — don't fire two requests for the same key simultaneously
   if (_artInflight.has(key)) return _artInflight.get(key);
 
   const promise = (async () => {
     try {
-      // Clean the name for IGDB search
-      let cleanName = name.replace(/\.[^.]+$/, '');
-      cleanName = cleanName.replace(/\s*[\(\[][^)\]]*[\)\]]/g, '');
-      cleanName = cleanName.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-      cleanName = cleanName.replace(/[\/\\<>|#%{}$!@`=+]/g, '').trim();
-      if (!cleanName) return null;
-
-      if (debug) console.log('[CoverArt] Searching IGDB for:', cleanName, 'core:', core);
-
-      const params = new URLSearchParams({ name: cleanName, core });
+      // Pass the raw name to the worker — it does its own cleaning
+      // Worker strips extension, region tags, No-Intro junk, does fuzzy IGDB match
+      const params = new URLSearchParams({ name, core });
       const r = await fetch('/cover-art?' + params.toString(), {
-        signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined,
+        signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined,
       });
 
-      if (debug) console.log('[CoverArt] worker status:', r.status, 'for:', cleanName);
+      if (debug) console.log('[CoverArt] worker status:', r.status, 'score:', r.headers.get('X-Cover-Score'), 'for:', name);
 
       if (r.ok) {
         const blob = await r.blob();
         const url = URL.createObjectURL(blob);
         _artMemCache[key] = url;
-        // Mark as found in IDB — re-fetches blob URL on next session (blob URLs don't survive reload)
+        // Store hasArt=true — next session re-fetches from CF edge cache (instant, no IGDB API call)
         try { await dbPut(ART_STORE, { id: key, hasArt: true, ts: Date.now() }); } catch(e) {}
         return url;
-      } else {
-        if (debug) console.warn('[CoverArt] not found for:', cleanName, 'status:', r.status);
+      } else if (r.status === 404) {
+        // Confirmed not found on IGDB — cache to avoid repeated API calls
+        if (debug) console.warn('[CoverArt] IGDB 404 for:', name);
         try { await dbPut(ART_STORE, { id: key, notFound: true, ts: Date.now() }); } catch(e) {}
+        return null;
+      } else {
+        // Network/server error — don't cache, retry next session
+        if (debug) console.warn('[CoverArt] fetch error status:', r.status, 'for:', name);
         return null;
       }
     } catch(e) {
-      if (debug) console.warn('[CoverArt] error:', e.message);
+      if (debug) console.warn('[CoverArt] exception:', e.message);
       return null;
     } finally {
       _artInflight.delete(key);
@@ -5643,7 +5647,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260804200925';
+const APP_VERSION = '20260805011414';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -5968,6 +5972,11 @@ async function _refreshPremiumState() {
       setTimeout(() => restorePrefsFromCloud(), 800);
       if (_isPremium) setTimeout(() => restoreLibraryFromCloud(), 1500);
     }
+    // Always push any local pref changes to cloud on login
+    // so that changes made offline sync up when connection restored
+    else {
+      setTimeout(() => savePrefsToCloud(), 2000);
+    }
   } catch(e) {
     console.warn('[Auth] _refreshPremiumState exception:', e);
     _isPremium = false;
@@ -5986,11 +5995,13 @@ async function savePrefsToCloud() {
   try {
     const customThemeRaw = localStorage.getItem('rp-custom-theme');
     const prefs = {
-      theme:       localStorage.getItem('rp-theme') || 'default',
-      customTheme: customThemeRaw ? JSON.parse(customThemeRaw) : null,
-      libSort:     _libSort || 'lastPlayed',
-      username:    window._cachedUsername || null,
-      savedAt:     Date.now(),
+      theme:        localStorage.getItem('rp-theme') || 'default',
+      customTheme:  customThemeRaw ? JSON.parse(customThemeRaw) : null,
+      libSort:      _libSort || 'lastPlayed',
+      username:     window._cachedUsername || null,
+      size:         localStorage.getItem('rp-size') || null,
+      customHeight: localStorage.getItem('rp-custom-height') || null,
+      savedAt:      Date.now(),
     };
     await _supabase.from('profiles').upsert({
       id: _currentUser.id,
@@ -6024,11 +6035,15 @@ async function restorePrefsFromCloud() {
       localStorage.setItem('rp-custom-theme', s);
       await prefSet('rp-custom-theme', s);
     }
-    // Theme — restore after custom theme so vars are available
-    if (p.theme) {
+    // Theme — only apply if cloud version differs from current
+    // (avoids overwriting a locally set theme with a stale cloud value)
+    if (p.theme && p.theme !== _currentTheme) {
       localStorage.setItem('rp-theme', p.theme);
       await prefSet('rp-theme', p.theme);
       applyTheme(p.theme, true);
+    } else if (p.theme) {
+      // Same theme — just ensure IDB is up to date
+      await prefSet('rp-theme', p.theme);
     }
     // Lib sort
     if (p.libSort) {
@@ -6036,6 +6051,18 @@ async function restorePrefsFromCloud() {
       await prefSet('rp-lib-sort', p.libSort);
       const sortSel = document.getElementById('lib-sort-select');
       if (sortSel) sortSel.value = p.libSort;
+    }
+    // Size
+    if (p.size) {
+      localStorage.setItem('rp-size', p.size);
+      await prefSet('rp-size', p.size);
+      _currentSize = p.size;
+      if (p.customHeight) {
+        localStorage.setItem('rp-custom-height', p.customHeight);
+        await prefSet('rp-custom-height', p.customHeight);
+        _customHeight = parseInt(p.customHeight) || 0;
+      }
+      applyGameHolderHeight();
     }
     console.log('[Prefs] Cloud prefs restored');
   } catch(e) {
