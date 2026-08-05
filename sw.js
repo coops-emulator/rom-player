@@ -2,7 +2,7 @@
    ROM Player by Coops — Service Worker
 ═══════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'rp-20260805045313';
+const CACHE_VERSION = 'rp-20260805045902';
 
 const PRECACHE = [
   '/manifest.json',

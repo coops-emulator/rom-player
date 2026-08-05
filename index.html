@@ -4678,6 +4678,18 @@ async function handleFile(file) {
   launch(URL.createObjectURL(file), sys, name, file);
 }
 
+// Normalises a ROM name for duplicate comparison: strips region/tag
+// annotations in (parentheses) or [brackets], strips punctuation, and
+// collapses whitespace. Comparison-only — never used for display/storage.
+// (This was missing entirely, which threw on every single ROM drop.)
+function cleanRomName(name) {
+  return (name || '')
+    .replace(/[\(\[][^)\]]*[\)\]]/g, ' ')  // strip (USA), [!], etc.
+    .replace(/[^a-z0-9\s]/gi, ' ')          // strip punctuation
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Conservative duplicate check — only flags a likely match, never acts
 // on its own. Compares cleaned/normalized names (ignoring region tags,
 // brackets, punctuation) within the SAME system, so "Zelda (USA)" and
@@ -5379,8 +5391,13 @@ document.addEventListener('keydown', e => {
 });
 
 // Close on backdrop tap
-document.getElementById('shortcut-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeShortcutSheet();
+// (Deferred to DOMContentLoaded — this element is declared further down
+// in the HTML, so binding immediately threw on every page load and
+// skipped this listener.)
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('shortcut-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closeShortcutSheet();
+  });
 });
 </script>
 <!-- ── Game Detail Overlay (Delta-style) ── -->
@@ -5663,7 +5680,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260805045313';
+const APP_VERSION = '20260805045902';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
