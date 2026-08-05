@@ -5680,7 +5680,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260805111444';
+const APP_VERSION = '20260805112546';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6172,7 +6172,9 @@ async function syncLibraryToCloud() {
       added_at: e.addedAt || null,
       favourite: !!e.favourite,
     }));
-    await _supabase.from('library_metadata').upsert(payload, { onConflict: 'user_id,game_id' });
+    for (const row of payload) {
+      await _supabase.from('library_metadata').upsert(row, { onConflict: 'user_id,game_id' });
+    }
     console.log('[Sync] Library synced', entries.length, 'entries');
   } catch(e) {
     console.warn('[Sync] Library sync failed:', e);
@@ -6248,14 +6250,7 @@ async function syncSaveStates() {
       }
       if (!bytes && ss.data && ss.data.length) bytes = new Uint8Array(ss.data);
       if (!bytes) continue;
-      // cap at 512KB, encode in 8KB chunks to avoid call stack overflow on large saves
-      const capped = bytes.slice(0, 1024 * 512);
-      let b64 = '';
-      const CHUNK = 8192;
-      for (let i = 0; i < capped.length; i += CHUNK) {
-        b64 += String.fromCharCode(...capped.slice(i, i + CHUNK));
-      }
-      b64 = btoa(b64);
+      const b64 = btoa(String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 1024 * 512)))); // cap 512KB per slot
       await _supabase.from('save_states').upsert({
         user_id: _currentUser.id,
         save_key: ss.id,
