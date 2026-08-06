@@ -5680,7 +5680,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260806013124';
+const APP_VERSION = '20260806081017';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6004,6 +6004,7 @@ async function _refreshPremiumState() {
       _cloudRestoreDone = true;
       setTimeout(() => restorePrefsFromCloud(), 800);
       if (_isPremium) setTimeout(() => restoreLibraryFromCloud(), 1500);
+      if (_isPremium) setTimeout(() => restoreSaveStatesFromCloud(), 2200);
     }
     // Always push any local pref changes to cloud on login
     // so that changes made offline sync up when connection restored
@@ -6250,7 +6251,14 @@ async function syncSaveStates() {
       }
       if (!bytes && ss.data && ss.data.length) bytes = new Uint8Array(ss.data);
       if (!bytes) continue;
-      const b64 = btoa(String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 1024 * 512)))); // cap 512KB per slot
+      // cap at 512KB, encode in 8KB chunks to avoid call stack overflow on large saves
+      const capped = bytes.slice(0, 1024 * 512);
+      let b64 = '';
+      const CHUNK = 8192;
+      for (let i = 0; i < capped.length; i += CHUNK) {
+        b64 += String.fromCharCode(...capped.slice(i, i + CHUNK));
+      }
+      b64 = btoa(b64);
       await _supabase.from('save_states').upsert({
         user_id: _currentUser.id,
         save_key: ss.id,
@@ -6268,6 +6276,49 @@ async function syncSaveStates() {
     console.warn('[Sync] Save state sync failed:', e);
     if (label) label.textContent = 'Sync failed — try again';
     showToast('❌ Sync failed');
+  }
+}
+
+async function restoreSaveStatesFromCloud() {
+  if (!_isPremium || !_currentUser || !_supabase) return;
+  try {
+    const { data, error } = await _supabase
+      .from('save_states')
+      .select('*')
+      .eq('user_id', _currentUser.id);
+    if (error || !data || !data.length) return;
+    let restored = 0;
+    for (const row of data) {
+      const existing = await dbGet(SS_STORE, row.save_key).catch(() => null);
+      if (existing && (existing.ts || 0) >= (row.ts || 0)) continue;
+      if (!row.data_b64) continue;
+      let bytes;
+      try {
+        const bin = atob(row.data_b64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      } catch(e) { continue; }
+      const opfsFilename = 'ss_' + String(row.save_key).replace(/[^a-zA-Z0-9_]/g,'_') + '.bin';
+      let savedToOpfs = false;
+      try { await opfsWrite(opfsFilename, bytes.buffer); savedToOpfs = true; } catch(e) {}
+      await dbPut(SS_STORE, {
+        id: row.save_key,
+        game: row.game,
+        slot: row.slot,
+        ts: row.ts,
+        img: row.img || null,
+        opfsFilename: savedToOpfs ? opfsFilename : null,
+        data: savedToOpfs ? null : Array.from(bytes),
+      });
+      restored++;
+    }
+    if (restored > 0) {
+      showToast(`☁️ Restored ${restored} save state${restored===1?'':'s'} from cloud`);
+      if (typeof renderSlots === 'function') renderSlots();
+    }
+    console.log('[Sync] Save states restored:', restored);
+  } catch(e) {
+    console.warn('[Sync] Save state restore failed:', e);
   }
 }
 
@@ -6502,23 +6553,6 @@ async function _sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-// ── Cloud save sync (stub — expands when ROM storage is added) ────
-async function syncSaveStates() {
-  if (!_currentUser || !_isPremium) return;
-  const label = document.getElementById('sync-status-label');
-  if (label) label.textContent = 'Syncing…';
-  try {
-    // Pull local save states and push to Supabase
-    // Full implementation added when ROM storage linking is built
-    await new Promise(r => setTimeout(r, 800)); // placeholder
-    if (label) label.textContent = 'Last synced: just now ✓';
-    showToast('☁️ Saves synced');
-  } catch(e) {
-    if (label) label.textContent = 'Sync failed — try again';
-    showToast('Sync failed');
-  }
-}
-
 function openSubscribePage() {
   // Stripe payment link goes here once Stripe is set up
   showToast('Stripe coming soon — use a redeem code for now');
@@ -6698,8 +6732,7 @@ async function scanDropboxForROMs() {
     const files = await _listDropboxFiles('');
     const roms  = files.filter(f =>
       f['.tag'] === 'file' &&
-      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext)) &&
-      !(f.path_lower || '').includes('/rom player saves/')
+      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext))
     );
     if (roms.length === 0) {
       if (statusEl) statusEl.textContent = 'No ROM files found';
