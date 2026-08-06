@@ -5680,7 +5680,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260806081017';
+const APP_VERSION = '20260806085758';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6172,6 +6172,7 @@ async function syncLibraryToCloud() {
       last_played: e.lastPlayed || null,
       added_at: e.addedAt || null,
       favourite: !!e.favourite,
+      rom_pointer: e.romPointer || null,
     }));
     for (const row of payload) {
       await _supabase.from('library_metadata').upsert(row, { onConflict: 'user_id,game_id' });
@@ -6207,16 +6208,24 @@ async function restoreLibraryFromCloud() {
           hasRom: false,
           romInOpfs: false,
           fileSizeKB: 0,
+          romPointer: row.rom_pointer || null,
         });
         restored++;
       } else {
         // Merge: keep local data but update play stats to whichever is higher
+        let changed = false;
         if ((row.play_time_secs || 0) > (existing.playTimeSecs || 0)) {
           existing.playTimeSecs = row.play_time_secs;
           existing.playCount = Math.max(existing.playCount || 0, row.play_count || 0);
           existing.favourite = existing.favourite || !!row.favourite;
-          await dbPut(META_STORE, existing);
+          changed = true;
         }
+        // Backfill a missing Dropbox pointer so old entries become playable again
+        if (!existing.romPointer && row.rom_pointer) {
+          existing.romPointer = row.rom_pointer;
+          changed = true;
+        }
+        if (changed) await dbPut(META_STORE, existing);
       }
     }
     if (restored > 0) {
