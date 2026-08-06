@@ -5686,7 +5686,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260806091222';
+const APP_VERSION = '20260806092025';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6747,7 +6747,8 @@ async function scanDropboxForROMs() {
     const files = await _listDropboxFiles('');
     const roms  = files.filter(f =>
       f['.tag'] === 'file' &&
-      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext))
+      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext)) &&
+      !(f.path_lower || '').includes('/rom player saves/')
     );
     if (roms.length === 0) {
       if (statusEl) statusEl.textContent = 'No ROM files found';
@@ -6772,6 +6773,11 @@ async function scanDropboxForROMs() {
           romInOpfs: false, opfsFilename: null,
         });
         added++;
+      } else if (!existing.romPointer || existing.romPointer.provider !== 'dropbox') {
+        // Backfill a missing/stale Dropbox pointer on an entry that already
+        // exists locally (e.g. restored from cloud before rom_pointer sync existed)
+        existing.romPointer = { provider: 'dropbox', path: rom.path_lower, id: rom.id };
+        await dbPut(META_STORE, existing);
       }
     }
     if (statusEl) statusEl.textContent = `Found ${roms.length} ROMs — ${added} added`;
