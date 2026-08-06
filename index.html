@@ -5680,7 +5680,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260805112546';
+const APP_VERSION = '20260806013124';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6698,7 +6698,8 @@ async function scanDropboxForROMs() {
     const files = await _listDropboxFiles('');
     const roms  = files.filter(f =>
       f['.tag'] === 'file' &&
-      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext))
+      ROM_EXTENSIONS.some(ext => f.name.toLowerCase().endsWith(ext)) &&
+      !(f.path_lower || '').includes('/rom player saves/')
     );
     if (roms.length === 0) {
       if (statusEl) statusEl.textContent = 'No ROM files found';
