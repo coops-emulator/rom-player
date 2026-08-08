@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ROM Player">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png?v=20260804044638">
 
 <!-- Theme colour (browser chrome on Android) -->
 <meta name="theme-color" content="#7c6af7">
@@ -20,7 +20,6 @@
 <!-- Preconnect to external resources used at runtime so DNS+TLS is already
      resolved before we need them — measurably reduces first-load latency. -->
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link rel="preconnect" href="https://thumbnails.libretro.com">
 <link rel="dns-prefetch" href="https://0.peerjs.com">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1522,7 +1521,7 @@ body.pseudo-fullscreen-active #game-holder {
 body.pseudo-fullscreen-active .top-bar,
 body.pseudo-fullscreen-active .actions,
 body.pseudo-fullscreen-active .ctrl-panel,
-body.pseudo-fullscreen-active .ctrl-rec-banner-wrap {
+body.pseudo-fullscreen-active #ctrl-rec-banner {
   display: none !important;
 }
 
@@ -1562,113 +1561,30 @@ body.pseudo-fullscreen-active .pseudo-fs-exit-btn { display: flex; }
 
 /* fs-action-bar removed — EJS native menu handles save/load/mute in fullscreen */
 
-/* ── Controller HUD overlay ──────────────────────────────────────────
-   Shows when a gamepad is connected AND fullscreen is active.
-   Panels are confined to the safe-area strips (notch margins) so they
-   can NEVER overlap the actual game canvas pixels. On devices without
-   a notch the panels are hidden entirely — there's no margin to use. */
-
-.ctrl-hud {
-  display: none;
-  position: fixed; inset: 0; z-index: 9050;
-  pointer-events: none;
-}
-body.pseudo-fullscreen-active.gamepad-connected .ctrl-hud { display: block; }
-
-/* Left panel — only visible when there's a left safe-area (notch side) */
-.ctrl-hud-left {
-  position: absolute;
-  left: 0;
-  width: max(0px, env(safe-area-inset-left, 0px));
-  top: 50%; transform: translateY(-50%);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  opacity: .35;
-  transition: opacity .3s;
-  overflow: hidden;
-}
-/* Right panel — only visible when there's a right safe-area */
-.ctrl-hud-right {
-  position: absolute;
-  right: 0;
-  width: max(0px, env(safe-area-inset-right, 0px));
-  top: 50%; transform: translateY(-50%);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  opacity: .35;
-  transition: opacity .3s;
-  overflow: hidden;
-}
-
-/* Animate both panels to full opacity for 1.5s when a button is pressed */
-.ctrl-hud-left.active,
-.ctrl-hud-right.active { opacity: .8; }
-
-.ctrl-hud-dpad {
-  display: grid; grid-template-columns: 18px 18px 18px; grid-template-rows: 18px 18px 18px;
-  gap: 1px;
-}
-.ctrl-hud-key {
-  width: 18px; height: 18px; border-radius: 4px;
-  background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.18);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 8px; color: rgba(255,255,255,.7); font-weight: 700;
-  line-height: 1;
-}
-.ctrl-hud-key.empty { background: transparent; border-color: transparent; }
-.ctrl-hud-key.pressed {
-  background: rgba(255,255,255,.35);
-  border-color: rgba(255,255,255,.6);
-}
-
-/* Face buttons — 2×2 diamond layout */
-.ctrl-hud-face {
-  display: grid; grid-template-columns: 18px 18px 18px; grid-template-rows: 18px 18px 18px;
-  gap: 1px;
-}
-.ctrl-hud-face-btn {
-  width: 18px; height: 18px; border-radius: 50%;
-  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 7px; font-weight: 800; color: rgba(255,255,255,.8);
-}
-.ctrl-hud-face-btn.empty { background: transparent; border-color: transparent; }
-.ctrl-hud-face-btn.y-btn { color: #f4c842; border-color: rgba(244,200,66,.5); background: rgba(244,200,66,.1); }
-.ctrl-hud-face-btn.b-btn { color: #f05a5a; border-color: rgba(240,90,90,.5); background: rgba(240,90,90,.1); }
-.ctrl-hud-face-btn.a-btn { color: #5aba6a; border-color: rgba(90,186,106,.5); background: rgba(90,186,106,.1); }
-.ctrl-hud-face-btn.x-btn { color: #5aa0f0; border-color: rgba(90,160,240,.5); background: rgba(90,160,240,.1); }
-.ctrl-hud-face-btn.pressed { filter: brightness(1.6); }
-
-/* Controller label under each panel */
-.ctrl-hud-label {
-  font-size: 9px; color: rgba(255,255,255,.4); font-weight: 600;
-  letter-spacing: .06em; text-transform: uppercase;
-  margin-top: 4px; text-align: center;
-}
-
-/* Shoulder button indicators — top of each panel */
-.ctrl-hud-shoulders {
-  display: flex; gap: 2px; margin-bottom: 3px;
-}
-.ctrl-hud-shoulder {
-  padding: 2px 5px; border-radius: 4px;
-  background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.18);
-  font-size: 7px; font-weight: 700; color: rgba(255,255,255,.7);
-}
-.ctrl-hud-shoulder.pressed { background: rgba(255,255,255,.3); }
-
-/* Gamepad connected badge in fullscreen */
+/* ── Gamepad connected tab ───────────────────────────────────────────
+   A small, dim tab docked in the bottom-right corner. It sits outside
+   the safe-area inset so it lands in the letterboxed/black margin
+   rather than on top of the game canvas, and it fades to a barely-
+   visible nub after a couple of seconds since the toast already
+   confirms the connection — this is a passive status indicator, not
+   an interactive overlay, so it never needs to compete with gameplay. */
 .fs-gamepad-badge {
   display: none;
   position: fixed; z-index: 9160;
-  top: calc(10px + env(safe-area-inset-top));
-  left: calc(10px + env(safe-area-inset-left));
-  background: rgba(0,0,0,.5);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 20px; padding: 4px 10px;
-  font-size: 11px; color: rgba(255,255,255,.6); font-weight: 600;
+  right: max(6px, env(safe-area-inset-right, 0px));
+  bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px; padding: 3px 8px;
+  font-size: 10px; color: rgba(255,255,255,.55); font-weight: 600;
   pointer-events: none;
+  max-width: 130px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  opacity: .5;
+  transition: opacity .6s ease .2s;
 }
 body.pseudo-fullscreen-active.gamepad-connected .fs-gamepad-badge { display: block; }
+.fs-gamepad-badge.faded { opacity: .1; }
 
 /* ─── Keyboard shortcut cheat sheet (press ?) ───
    Reuses the same visual language as the tutorial modal.
@@ -1718,9 +1634,6 @@ body.game-active #game-holder {
 body.game-active .wrap {
   padding-top: 4px;
 }
-
-/* Gamepad notification toast variant */
-.toast.gamepad-toast { background: var(--surf); border-color: var(--accent); }
 
 /* ── Premium lock overlay on gated UI ── */
 .premium-lock {
@@ -2321,52 +2234,9 @@ body.game-active .wrap {
     <div id="game-holder"><div id="game"></div></div>
     <button class="pseudo-fs-exit-btn" id="fs-exit-btn" onclick="exitPseudoFullscreen()" title="Exit fullscreen">✕</button>
 
-    <!-- Controller HUD — shown in fullscreen when gamepad is connected -->
-    <div class="ctrl-hud" id="ctrl-hud">
-      <!-- Left: D-pad -->
-      <div class="ctrl-hud-left" id="ctrl-hud-left">
-        <div class="ctrl-hud-shoulders">
-          <div class="ctrl-hud-shoulder" id="hud-l1">L1</div>
-          <div class="ctrl-hud-shoulder" id="hud-l2">L2</div>
-        </div>
-        <div class="ctrl-hud-dpad">
-          <div class="ctrl-hud-key empty"></div>
-          <div class="ctrl-hud-key" id="hud-up">↑</div>
-          <div class="ctrl-hud-key empty"></div>
-          <div class="ctrl-hud-key" id="hud-left">←</div>
-          <div class="ctrl-hud-key empty" style="background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1)"></div>
-          <div class="ctrl-hud-key" id="hud-right">→</div>
-          <div class="ctrl-hud-key empty"></div>
-          <div class="ctrl-hud-key" id="hud-down">↓</div>
-          <div class="ctrl-hud-key empty"></div>
-        </div>
-        <div class="ctrl-hud-label">D-Pad</div>
-      </div>
-
-      <!-- Right: face buttons -->
-      <div class="ctrl-hud-right" id="ctrl-hud-right">
-        <div class="ctrl-hud-shoulders">
-          <div class="ctrl-hud-shoulder" id="hud-r1">R1</div>
-          <div class="ctrl-hud-shoulder" id="hud-r2">R2</div>
-        </div>
-        <div class="ctrl-hud-face">
-          <div class="ctrl-hud-face-btn empty"></div>
-          <div class="ctrl-hud-face-btn y-btn" id="hud-y">Y</div>
-          <div class="ctrl-hud-face-btn empty"></div>
-          <div class="ctrl-hud-face-btn x-btn" id="hud-x">X</div>
-          <div class="ctrl-hud-face-btn empty"></div>
-          <div class="ctrl-hud-face-btn a-btn" id="hud-a">A</div>
-          <div class="ctrl-hud-face-btn empty"></div>
-          <div class="ctrl-hud-face-btn b-btn" id="hud-b">B</div>
-          <div class="ctrl-hud-face-btn empty"></div>
-        </div>
-        <div class="ctrl-hud-label">Buttons</div>
-      </div>
-    </div>
-
     <!-- Fullscreen action bar removed — EJS native menu handles save/load/mute -->
 
-    <!-- Gamepad badge (top-left in fullscreen) -->
+    <!-- Gamepad tab (bottom-right, tucked in the safe-area/letterbox margin) -->
     <div class="fs-gamepad-badge" id="fs-gamepad-badge">🎮 Controller</div>
 
     <!-- Controller recommendation (shown occasionally when no gamepad connected) -->
@@ -3430,14 +3300,11 @@ async function initStorage() {
 const _storageReadyPromise = initStorage();
 
 /* ══ COVER ART ═══════════════════════════════════════
-   Source: thumbnails.libretro.com — the official CDN.
-   Confirmed from live directory listing:
-   - Files use SPACES (percent-encoded), NOT underscores
-   - Region tags are KEPT in filenames: "Game (USA).png"
-   - Special chars & → _ in filenames only
-   - CORS: * confirmed on CDN responses
-   URL pattern:
-   thumbnails.libretro.com/{System Name}/Named_Boxarts/{Game Name (Region)}.png
+   Source: IGDB via Twitch OAuth, proxied through the
+   Cloudflare Worker's /cover-art endpoint (fuzzy/Levenshtein
+   matched server-side). Never call IGDB or Twitch directly
+   from the client — the worker holds the credentials.
+   thumbnails.libretro.com is retired; do not reintroduce it.
 ═══════════════════════════════════════════════════ */
 const _artMemCache = {};
 
@@ -5128,8 +4995,6 @@ document.addEventListener('keydown', e => {
 
 let _pseudoFullscreen  = false;
 let _fsActionBarTimer  = null;
-let _gpHudTimer        = null;
-let _gpHudRafId        = null;
 
 function goFull() {
   const el = document.getElementById('game-holder');
@@ -5168,9 +5033,6 @@ function enterPseudoFullscreen() {
   // Show action bar briefly on entry so the user knows it exists
   _showFsActionBar(2800);
 
-  // Start gamepad HUD polling
-  _startGpHud();
-
   // Update gamepad badge
   _updateGpBadge();
 }
@@ -5188,7 +5050,6 @@ function exitPseudoFullscreen() {
   const holder = document.getElementById('game-holder');
   holder.removeEventListener('click', _fsHolderTap);
   _hideFsActionBar();
-  _stopGpHud();
 }
 
 // Tapping the game holder in fullscreen no longer shows an action bar —
@@ -5197,58 +5058,16 @@ function _fsHolderTap() { /* intentionally empty */ }
 function _showFsActionBar() {}
 function _hideFsActionBar() {}
 
-// Gamepad badge visibility
+// Gamepad badge visibility — briefly un-fades on (re)connect, then
+// recedes to a barely-visible nub after 2.5s. No polling involved;
+// this is purely event-driven so it costs nothing during gameplay.
+let _gpBadgeFadeTimer = null;
 function _updateGpBadge() {
   const badge = document.getElementById('fs-gamepad-badge');
   if (!badge) return;
-  // text updated by gamepadconnected/disconnected handlers
-}
-
-/* ── Gamepad HUD — polls the Gamepad API at ~60fps while in fullscreen ──
-   Maps standard gamepad button indices to our HUD elements.
-   Standard mapping: 0=A 1=B 2=X 3=Y 4=L1 5=R1 6=L2 7=R2
-                     12=Up 13=Down 14=Left 15=Right                        */
-const GP_MAP = {
-  0:  'hud-a',  1:  'hud-b',  2:  'hud-x',  3:  'hud-y',
-  4:  'hud-l1', 5:  'hud-r1', 6:  'hud-l2', 7:  'hud-r2',
-  12: 'hud-up', 13: 'hud-down', 14: 'hud-left', 15: 'hud-right',
-};
-
-function _startGpHud() {
-  _stopGpHud();
-  function poll() {
-    if (!_pseudoFullscreen) return;
-    const gamepads = navigator.getGamepads ? [...navigator.getGamepads()] : [];
-    const gp = gamepads.find(Boolean);
-    if (gp) {
-      let anyPressed = false;
-      for (const [idx, elId] of Object.entries(GP_MAP)) {
-        const btn = gp.buttons[idx];
-        const pressed = btn && (btn.pressed || btn.value > 0.5);
-        const el = document.getElementById(elId);
-        if (el) el.classList.toggle('pressed', !!pressed);
-        if (pressed) anyPressed = true;
-      }
-      if (anyPressed) {
-        // Flash panels visible
-        const l = document.getElementById('ctrl-hud-left');
-        const r = document.getElementById('ctrl-hud-right');
-        if (l) { l.classList.add('active'); clearTimeout(l._t); l._t = setTimeout(() => l.classList.remove('active'), 600); }
-        if (r) { r.classList.add('active'); clearTimeout(r._t); r._t = setTimeout(() => r.classList.remove('active'), 600); }
-      }
-    }
-    _gpHudRafId = requestAnimationFrame(poll);
-  }
-  _gpHudRafId = requestAnimationFrame(poll);
-}
-
-function _stopGpHud() {
-  if (_gpHudRafId) { cancelAnimationFrame(_gpHudRafId); _gpHudRafId = null; }
-  // Clear all pressed states
-  Object.values(GP_MAP).forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove('pressed');
-  });
+  badge.classList.remove('faded');
+  clearTimeout(_gpBadgeFadeTimer);
+  _gpBadgeFadeTimer = setTimeout(() => badge.classList.add('faded'), 2500);
 }
 
 /* Auto-enter fullscreen when rotating phone to landscape while playing
@@ -5288,7 +5107,7 @@ window.addEventListener('gamepadconnected', () => {
   const gp = gamepads.find(Boolean);
   const name = gp ? (gp.id || 'Controller').replace(/\(.*?\)/g,'').trim().slice(0,28) : 'Controller';
   if (badge) badge.textContent = '🎮 ' + name;
-  if (_pseudoFullscreen) _showFsActionBar(1800);
+  if (_pseudoFullscreen) _updateGpBadge();
 });
 window.addEventListener('gamepaddisconnected', () => {
   const gamepads = navigator.getGamepads ? [...navigator.getGamepads()] : [];
@@ -5311,7 +5130,6 @@ async function goBack() {
   cleanup();
   hideLaunchSplash();
   if (_pseudoFullscreen) exitPseudoFullscreen();
-  _stopGpHud();
   document.body.classList.remove('game-active');
   document.getElementById('screen-player').style.display = 'none';
   document.getElementById('screen-loader').style.display = 'block';
@@ -5686,7 +5504,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260806092025';
+const APP_VERSION = '20260808050544';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -5725,7 +5543,6 @@ const CHANGELOG_ITEMS = [
   '☁️ <strong>Cloud library sync</strong> — play times, favourites, and game history now automatically back up and restore across devices for Premium users',
   '🔒 <strong>Linkup Room passwords</strong> — Premium hosts can now password-protect their room to keep it invite-only',
   '📱 iPhone fullscreen is now truly edge-to-edge in landscape — tap anywhere to reveal save/load/exit controls',
-  '🎮 Controller HUD: when a gamepad is connected in fullscreen, subtle button indicators appear on each side of the screen',
 ];
 
 function showWhatsNew() {
