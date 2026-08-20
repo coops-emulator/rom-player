@@ -2366,7 +2366,7 @@ body.game-active .wrap {
 <footer>ROM Player by Coops · Emulation core: <a href="https://emulatorjs.org" target="_blank" rel="noopener">EmulatorJS</a>, booted via our own <a href="https://github.com/coops-emulator/coops_emulator_backbone" target="_blank" rel="noopener">coops_emulator_backbone</a> wrapper · Runs 100% locally · No data uploaded</footer>
 <div class="toast" id="toast"></div>
 
-<script src="emulator-backbone.js?v=20260820201931"></script>
+<script src="emulator-backbone.js?v=20260820202736"></script>
 <script>
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════
    `core` is ROM Player's own internal system id — used
@@ -3040,6 +3040,18 @@ window.addEventListener('resize', () => {
 document.addEventListener('DOMContentLoaded', async () => {
   // Restore from IDB — more persistent than localStorage on iOS Safari
   await _storageReadyPromise;
+
+  // Resume a game that triggered the single-boot-guard reload (see launch()
+  // above) — must run after _storageReadyPromise since it needs OPFS/IDB.
+  try {
+    const pending = sessionStorage.getItem(PENDING_RELAUNCH_KEY);
+    if (pending) {
+      sessionStorage.removeItem(PENDING_RELAUNCH_KEY);
+      const { name, core, sysLabel } = JSON.parse(pending);
+      libPlayFromDB(name, core, sysLabel);
+    }
+  } catch(e) {}
+
   const savedTheme  = await prefGet('rp-theme', localStorage.getItem('rp-theme') || 'default');
   const savedCustom = await prefGet('rp-custom-theme', localStorage.getItem('rp-custom-theme') || null);
   const savedSize   = await prefGet('rp-size', localStorage.getItem('rp-size') || null);
@@ -4781,7 +4793,52 @@ document.addEventListener('visibilitychange', () => {
 // directly (save states, pause, fullscreen, etc.) keeps working unchanged.
 let _engine = null;
 
+// ── Page-level single-boot guard ────────────────────────────────────────
+// CONFIRMED IN PRODUCTION: launching a second game in the same tab (Back,
+// then pick a different game — this app never does a full page reload for
+// that) throws "Uncaught SyntaxError: Identifier 'EJS_STORAGE' has already
+// been declared (at emulator.min.js:1:1)". This isn't a race condition or
+// a stale-callback issue (that was a *different*, already-fixed bug — see
+// the boot-generation guard in emulator-backbone.js) — it's a hard JS
+// constraint. EmulatorJS's own emulator.min.js declares top-level
+// `let`/`const` globals. Re-injecting that same script a second time in
+// the same page (same JS realm) always throws on the redeclaration,
+// regardless of how many fresh EmulatorEngine instances we create on our
+// side, because our engine's `_booted` guard only tracks OUR bookkeeping —
+// it can't undo a global lexical binding once the browser has made it.
+// emulator-backbone.js's own loadGame() error message already says the
+// real fix: "...or reload the page...". So: force one, automatically,
+// and transparently relaunch the requested game once the fresh page is
+// back up, instead of leaving the user to figure out they need to
+// manually refresh between every single game.
+let _ejsBootedOnce = false;
+const PENDING_RELAUNCH_KEY = 'rp-pending-relaunch';
+
 async function launch(romUrl, sys, name, file) {
+  if (_ejsBootedOnce) {
+    // A fresh drop/relaunch-picker file hasn't necessarily finished its
+    // OPFS write yet — libAdd() below is normally fire-and-forget, but
+    // here we must await it so the ROM is actually retrievable by
+    // libPlayFromDB() after the reload, not just in-memory in this
+    // about-to-be-destroyed page.
+    if (file) {
+      showToast('💾 Saving ROM before reload…');
+      try { await libAdd(name, sys.label, sys.core, file); } catch(e) {}
+    }
+    try {
+      sessionStorage.setItem(PENDING_RELAUNCH_KEY, JSON.stringify({
+        name, core: sys.core, sysLabel: sys.label,
+      }));
+    } catch(e) {
+      // sessionStorage full/unavailable — fall back to the relaunch modal
+      // after reload rather than silently losing the request.
+    }
+    showToast('🔄 Reloading to start a fresh emulator session…');
+    setTimeout(() => location.reload(), 400);
+    return;
+  }
+  _ejsBootedOnce = true;
+
   showLaunchSplash(name, sys, async () => {
     document.getElementById('screen-loader').style.display = 'none';
     document.getElementById('screen-player').style.display = 'block';
@@ -5740,7 +5797,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260820201931';
+const APP_VERSION = '20260820202736';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
