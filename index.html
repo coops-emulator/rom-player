@@ -1821,7 +1821,7 @@ body.game-active .wrap {
         <p>Or tap to browse — NES, SNES, GBA, PSP, N64, Genesis, Saturn, PS1 and more</p>
       </div>
       <input type="file" id="file-inp" style="display:none"
-        accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
+        accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.cso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
       <div class="chips">
         <span class="chip">NES</span><span class="chip">SNES</span><span class="chip">Game Boy</span>
         <span class="chip">GBC</span><span class="chip">GBA</span><span class="chip">N64</span>
@@ -1878,7 +1878,7 @@ body.game-active .wrap {
             </button>
             <button class="rx-btn" onclick="rxShareFromLibrary()">Share from Library</button>
             <input type="file" id="rx-file-inp" style="display:none"
-              accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
+              accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.cso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
           </div>
           <div id="rx-grid-wrap">
             <div class="rx-empty" id="rx-empty">No files shared yet — be the first to share one!</div>
@@ -2283,7 +2283,18 @@ body.game-active .wrap {
         <button class="lib-btn primary" onclick="document.getElementById('relaunch-inp').click()">Choose file</button>
       </div>
       <input type="file" id="relaunch-inp" style="display:none"
-        accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
+        accept=".nes,.smc,.sfc,.gba,.gb,.gbc,.z64,.n64,.v64,.md,.gen,.bin,.cue,.iso,.cso,.pce,.ws,.wsc,.vb,.nds,.32x,.gg,.sms,.ngp,.ngc,.a26,.col,.int,.vec,.elf,.pbp,.sat,.chd,.s32,.scd,.neo,.ngeo,.lynx,.atl,.msx">
+    </div>
+  </div>
+  <div class="modal-bg" id="sys-choice-modal">
+    <div class="modal">
+      <h3>💿 Which console is this?</h3>
+      <p>.iso is used by both PS1 and PSP — pick the right one so the correct core loads.</p>
+      <div class="modal-actions">
+        <button class="lib-btn" onclick="cancelIsoSystemChoice()">Cancel</button>
+        <button class="lib-btn primary" onclick="pickIsoSystem('iso')">PS1</button>
+        <button class="lib-btn primary" onclick="pickIsoSystem('isoPsp')">PSP</button>
+      </div>
     </div>
   </div>
 
@@ -2355,7 +2366,7 @@ body.game-active .wrap {
 <footer>ROM Player by Coops · Emulation core: <a href="https://emulatorjs.org" target="_blank" rel="noopener">EmulatorJS</a>, booted via our own <a href="https://github.com/coops-emulator/coops_emulator_backbone" target="_blank" rel="noopener">coops_emulator_backbone</a> wrapper · Runs 100% locally · No data uploaded</footer>
 <div class="toast" id="toast"></div>
 
-<script src="emulator-backbone.js?v=20260818203659"></script>
+<script src="emulator-backbone.js?v=20260820065805"></script>
 <script>
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════
    `core` is ROM Player's own internal system id — used
@@ -2405,6 +2416,16 @@ const SYS = {
   int:  { core:'intellivision',label:'Intellivision', bg:'#1e2e2a', fg:'#60d0a0' },
   vec:  { core:'vectrex',      label:'Vectrex',       bg:'#2e1e2a', fg:'#d060c0' },
   pbp:  { core:'ppsspp',       label:'PSP',           bg:'#1a2840', fg:'#5090e0', ejsSystem:'psp' },
+  // .cso is a compressed PSP ISO — unlike plain .iso, no other system this
+  // app supports uses it, so it's safe to map directly (no PS1/PSP prompt
+  // needed). Previously missing entirely, so dropping a .cso PSP dump
+  // failed with "Unsupported format: .cso" — PSP mostly ships as .iso/.cso,
+  // .pbp is the minority case, so this was blocking most PSP games outright.
+  cso:  { core:'ppsspp',       label:'PSP',           bg:'#1a2840', fg:'#5090e0', ejsSystem:'psp' },
+  // Not a real file extension — used only as a lookup key by
+  // resolveSysForExt()'s PS1/PSP disambiguation prompt below, since plain
+  // .iso is genuinely ambiguous (both PS1 discs and PSP UMD dumps use it).
+  isoPsp: { core:'ppsspp',     label:'PSP',           bg:'#1a2840', fg:'#5090e0', ejsSystem:'psp' },
   sat:  { core:'saturn',       label:'Saturn',        bg:'#2a1e40', fg:'#9060e0', ejsSystem:'saturn' },
   chd:  { core:'psx',           label:'PS1',           bg:'#3d1e1e', fg:'#f07070', ejsSystem:'psx' },
   s32:  { core:'sega32x',      label:'Sega 32X',      bg:'#3d2a1e', fg:'#f0a060', ejsSystem:'sega32x' },
@@ -3995,11 +4016,12 @@ function closeRelaunchModal() {
   document.getElementById('relaunch-modal').classList.remove('open');
   _pendingRelaunch = null;
 }
-document.getElementById('relaunch-inp').addEventListener('change', function(e) {
+document.getElementById('relaunch-inp').addEventListener('change', async function(e) {
   const file = e.target.files[0]; if (!file || !_pendingRelaunch) return;
   closeRelaunchModal();
-  const sys = SYS[file.name.split('.').pop().toLowerCase()];
-  if (!sys) { showErr('Unsupported format.'); return; }
+  const ext = file.name.split('.').pop().toLowerCase();
+  const sys = await resolveSysForExt(ext);
+  if (!sys) { if (ext !== 'iso') showErr('Unsupported format.'); return; }
   launch(URL.createObjectURL(file), sys, _pendingRelaunch.name, file);
 });
 document.getElementById('relaunch-modal').addEventListener('click', function(e) {
@@ -4522,8 +4544,8 @@ async function rxDownload(id) {
 async function rxShareFile(file) {
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
-  const sys = SYS[ext];
-  if (!sys) { showToast('⚠️ Unsupported format'); return; }
+  const sys = await resolveSysForExt(ext);
+  if (!sys) { if (ext !== 'iso') showToast('⚠️ Unsupported format'); return; }
   const id = Date.now() + '-' + Math.random().toString(36).slice(2);
   const buf = await file.arrayBuffer();
   const rom = {
@@ -4623,12 +4645,38 @@ function showErr(msg) {
   el.textContent = msg; el.style.display = 'block';
 }
 
+// .iso is used by both PS1 discs and PSP UMD dumps — the extension alone
+// can't tell them apart, and guessing wrong means the wrong core loads
+// (previously every .iso silently forced PS1, so PSP .iso dumps — the
+// most common PSP format alongside .cso — never worked). Ask once.
+let _sysChoiceResolve = null;
+function showIsoSystemChoice() {
+  return new Promise(resolve => {
+    _sysChoiceResolve = resolve;
+    document.getElementById('sys-choice-modal').classList.add('open');
+  });
+}
+function pickIsoSystem(sysKey) {
+  document.getElementById('sys-choice-modal').classList.remove('open');
+  const resolve = _sysChoiceResolve; _sysChoiceResolve = null;
+  if (resolve) resolve(SYS[sysKey] || null);
+}
+function cancelIsoSystemChoice() {
+  document.getElementById('sys-choice-modal').classList.remove('open');
+  const resolve = _sysChoiceResolve; _sysChoiceResolve = null;
+  if (resolve) resolve(null);
+}
+async function resolveSysForExt(ext) {
+  if (ext === 'iso') return showIsoSystemChoice();
+  return SYS[ext] || null;
+}
+
 async function handleFile(file) {
   if (!file) return;
   document.getElementById('err').style.display = 'none';
   const ext = file.name.split('.').pop().toLowerCase();
-  const sys = SYS[ext];
-  if (!sys) { showErr('Unsupported format: .' + ext); return; }
+  const sys = await resolveSysForExt(ext);
+  if (!sys) { if (ext !== 'iso') showErr('Unsupported format: .' + ext); return; }
   const name = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
 
   const dupe = await findLikelyDuplicate(name, sys.core);
@@ -4967,23 +5015,40 @@ function getGM() {
   return (emu && emu.gameManager) ? emu.gameManager : null;
 }
 
-function captureScreenshot() {
+// Converts raw bytes (e.g. a PNG file read out of the core's virtual FS)
+// into a data: URL, chunked to avoid blowing the call stack on
+// String.fromCharCode.apply() for larger screenshots.
+function bytesToDataUrl(bytes, mime) {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return 'data:' + mime + ';base64,' + btoa(binary);
+}
+
+async function captureScreenshot() {
   // Preferred path: gameManager's own screenshot capture, if this EJS build
-  // exposes one (mirrors the documented getState()/loadState() pair — see
-  // the SOURCE-VERIFIED comment above). Unlike grabbing the DOM canvas from
-  // outside, this reads from EJS's own render pipeline (see EJS_screenCapture
-  // config in launch() — source:'retroarch'), so it isn't subject to the
-  // WebGL preserveDrawingBuffer blank-capture problem. NOT in the
-  // source-verified API list above, hence the feature-detect + fallback:
-  // if this method doesn't exist on a given EJS build, we silently drop
-  // through to the canvas grab exactly as before — this can only add a
-  // working thumbnail, never break an existing save.
+  // exposes one. SOURCE-VERIFIED against EmulatorJS's own GameManager.js
+  // (data/src/GameManager.js, screenshot()): it calls the core's
+  // cmd_take_screenshot, polls its virtual FS until /screenshot.png exists,
+  // then resolves an ASYNC Promise with the RAW PNG BYTES (a Uint8Array),
+  // not a data-URL string and not a {url} object. The previous code here
+  // checked the return value synchronously for `typeof shot === 'string'`
+  // or `shot.url`, which never matches a Promise — so this branch was a
+  // silent no-op on every single save, and every thumbnail actually came
+  // from the raw canvas fallback below (blank on WebGL cores without
+  // preserveDrawingBuffer). Race against a timeout since screenshot() has
+  // no built-in one and would otherwise hang saveToSlot() forever on a
+  // core that never fires cmd_take_screenshot.
   try {
     const gm = getGM();
     if (gm && typeof gm.screenshot === 'function') {
-      const shot = gm.screenshot();
-      if (typeof shot === 'string' && shot.length) return shot;
-      if (shot && typeof shot.url === 'string') return shot.url; // some builds return {url, width, height}
+      const bytes = await Promise.race([
+        gm.screenshot(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('screenshot timed out')), 3000)),
+      ]);
+      if (bytes && bytes.length) return bytesToDataUrl(bytes, 'image/png');
     }
   } catch(e) {}
   // Fallback: raw canvas grab. Works for 2D-context cores; may still be
@@ -5008,7 +5073,7 @@ async function saveToSlot(slot) {
     showToast('⚠️ Could not read state'); return;
   }
   const key = ssKey(_currentGame, slot);
-  const img = captureScreenshot();
+  const img = await captureScreenshot();
   const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   const opfsFilename = 'ss_' + key.replace(/[^a-zA-Z0-9_]/g,'_') + '.bin';
   let savedToOpfs = false;
@@ -5667,7 +5732,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260818203659';
+const APP_VERSION = '20260820065805';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
@@ -6955,7 +7020,7 @@ function _extToSystem(ext) {
     '.n64':'N64','.z64':'N64','.v64':'N64',
     '.nds':'NDS','.gen':'Genesis','.md':'Genesis','.smd':'Genesis',
     '.iso':'PS1','.bin':'PS1','.cue':'PS1','.chd':'PS1',
-    '.pbp':'PSP','.gg':'Game Gear','.sms':'Master System',
+    '.pbp':'PSP','.cso':'PSP','.gg':'Game Gear','.sms':'Master System',
     '.pce':'PC Engine','.32x':'32X',
     '.ngp':'Neo Geo Pocket','.ngc':'Neo Geo Pocket Color',
     '.ws':'WonderSwan','.wsc':'WonderSwan Color',

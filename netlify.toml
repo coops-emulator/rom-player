@@ -10,6 +10,14 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    # Cross-origin isolation — required for PSP's threaded ppsspp core
+    # (SharedArrayBuffer). Mirrors _headers (the Cloudflare Pages copy of
+    # this same rule) so PSP works regardless of which host is actually
+    # serving the deploy. Without these two headers PSP fails at boot with
+    # "SharedArrayBuffer is not defined". Every other system works fine
+    # without them.
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
 
 [[headers]]
   for = "/index.html"
