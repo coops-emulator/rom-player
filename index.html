@@ -2366,7 +2366,7 @@ body.game-active .wrap {
 <footer>ROM Player by Coops · Emulation core: <a href="https://emulatorjs.org" target="_blank" rel="noopener">EmulatorJS</a>, booted via our own <a href="https://github.com/coops-emulator/coops_emulator_backbone" target="_blank" rel="noopener">coops_emulator_backbone</a> wrapper · Runs 100% locally · No data uploaded</footer>
 <div class="toast" id="toast"></div>
 
-<script src="emulator-backbone.js?v=20260820065805"></script>
+<script src="emulator-backbone.js?v=20260820201931"></script>
 <script>
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════
    `core` is ROM Player's own internal system id — used
@@ -4838,6 +4838,14 @@ async function launch(romUrl, sys, name, file) {
 
     const backbone = window.CoopsEmulatorBackbone;
 
+    // EmulatorJS's own ppsspp core is still labeled beta upstream — it can
+    // crash, white-screen, or run slow, especially in 3D-heavy games (i.e.
+    // most PSP titles). Not something this app can patch around, so set
+    // expectations up front rather than let it look like an app bug.
+    if (sys.core === 'ppsspp') {
+      showToast('🚧 PSP emulation is in beta — expect occasional crashes, slowdowns, or graphical glitches, especially in 3D-heavy games.');
+    }
+
     if (backbone && sys.ejsSystem) {
       // ── Verified path: boot through coops_emulator_backbone ────────────
       // Rewind tuning comes from the backbone's own getRewindProfile() —
@@ -5732,7 +5740,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260820065805';
+const APP_VERSION = '20260820201931';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.

@@ -19,5 +19,19 @@
   # defined". Every other system in this app works fine without them.
   # The PeerJS script tag (linkup room) was given crossorigin="anonymous"
   # in index.html so it loads in CORS mode and isn't blocked by this.
+  #
+  # IMPORTANT — credentialless, NOT require-corp. Both give
+  # window.crossOriginIsolated === true, which is all PSP actually needs.
+  # require-corp additionally demands every cross-origin resource send back
+  # a Cross-Origin-Resource-Policy header opting in — cdn.emulatorjs.org
+  # (and cdn.jsdelivr.net) don't send that header, so require-corp silently
+  # killed every fetch to them (net::ERR_FAILED, no HTTP status, looks like
+  # a network outage but isn't one), which took down EVERY core's boot —
+  # not just PSP's — the first time this shipped. credentialless drops
+  # third-party cookies on those no-cors requests instead of requiring
+  # CORP cooperation, which is irrelevant here since these are public,
+  # cookie-less CDN assets. Supported Chrome/Edge 96+, Firefox 119+,
+  # Safari 2024+ — do not change this back to require-corp without first
+  # confirming cdn.emulatorjs.org has started sending CORP headers.
   Cross-Origin-Opener-Policy: same-origin
-  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Embedder-Policy: credentialless

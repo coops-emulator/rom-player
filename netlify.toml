@@ -16,8 +16,17 @@
     # serving the deploy. Without these two headers PSP fails at boot with
     # "SharedArrayBuffer is not defined". Every other system works fine
     # without them.
+    #
+    # credentialless, NOT require-corp: require-corp demands every
+    # cross-origin resource (cdn.emulatorjs.org, cdn.jsdelivr.net) send
+    # back a Cross-Origin-Resource-Policy header opting in. Neither CDN
+    # does, so require-corp silently killed every fetch to them
+    # (net::ERR_FAILED with no HTTP status — looks like an outage, isn't
+    # one), which broke EVERY core's boot, not just PSP's, the first time
+    # this shipped. credentialless still yields crossOriginIsolated===true
+    # (all PSP needs) without requiring third-party CORP cooperation.
     Cross-Origin-Opener-Policy = "same-origin"
-    Cross-Origin-Embedder-Policy = "require-corp"
+    Cross-Origin-Embedder-Policy = "credentialless"
 
 [[headers]]
   for = "/index.html"
