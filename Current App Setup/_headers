@@ -1,0 +1,23 @@
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Service-Worker-Allowed: /
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/version.json
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  # Cross-origin isolation — required for PSP's threaded ppsspp core
+  # (SharedArrayBuffer). Per EmulatorJS's own FAQ (emulatorjs.org/docs/faq/):
+  # without these two headers PSP fails with "SharedArrayBuffer is not
+  # defined". Every other system in this app works fine without them.
+  # The PeerJS script tag (linkup room) was given crossorigin="anonymous"
+  # in index.html so it loads in CORS mode and isn't blocked by this.
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
