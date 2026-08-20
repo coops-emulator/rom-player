@@ -46,19 +46,7 @@ if [ -f "$EMULATOR_BACKBONE_FILE" ]; then
   rm -f "$SW_FILE.bak"
 fi
 
-# Same cache-bust treatment for controller-skins.js (custom on-screen
-# controller skin engine) — same bug class as emulator-backbone.js above
-# applies here too: without a version marker of its own it'll sit under
-# _headers' immutable, max-age=31536000 rule and never update.
-CONTROLLER_SKINS_FILE="$SCRIPT_DIR/controller-skins.js"
-if [ -f "$CONTROLLER_SKINS_FILE" ]; then
-  sed -i.bak "s#controller-skins\.js?v=[A-Za-z0-9]*#controller-skins.js?v=$VERSION#" "$HTML_FILE"
-  rm -f "$HTML_FILE.bak"
-  sed -i.bak "s#/controller-skins\.js?v=[A-Za-z0-9]*#/controller-skins.js?v=$VERSION#" "$SW_FILE"
-  rm -f "$SW_FILE.bak"
-fi
-
-echo "✅ Version stamped (index.html, version.json, sw.js, emulator-backbone.js + controller-skins.js cache-bust)"
+echo "✅ Version stamped (index.html, version.json, sw.js, emulator-backbone.js cache-bust)"
 echo "🚀 Deploying to Netlify..."
 
 # Deploy

@@ -711,40 +711,10 @@ input, textarea, select { font-size: 16px !important; }
   border-radius: 20px; letter-spacing: .03em; flex-shrink: 0;
 }
 
-/* ─── Game stage — the outer "device" frame ───────────────────────────
-   This is the box the user's chosen player-size setting sizes (see
-   applyGameHolderHeight()). It's also the fullscreen target now (both
-   native requestFullscreen() and the iOS pseudo-fullscreen class), so
-   whatever space is left around the actual game screen — sides in
-   landscape/widescreen, top+bottom in portrait — belongs to it, not to
-   flat black bars. #game-holder inside it is aspect-locked to whichever
-   system is running (see fitGameHolderToStage()) and centered, so that
-   leftover space is real and consistent, not just an EJS letterbox we
-   don't control. */
-#game-stage {
+#game-holder {
   width: 100%; background: #000; border-radius: 14px;
   overflow: hidden; min-height: min(480px, 56vw); position: relative;
   box-shadow: 0 0 40px rgba(0,0,0,.6);
-  /* Flex column: #game-screen-area (the aspect-fit box) on top, and —
-     only while RPControllerSkins.attach() has built one — the .rp-dock
-     controller pad as a second flex child below it. See
-     controller-skins.js for why the dock has to live inside #game-stage
-     rather than as a plain page sibling (native Fullscreen only renders
-     descendants of the fullscreened element). */
-  display: flex; flex-direction: column; align-items: stretch;
-}
-/* The box #game-holder's aspect-fit math (fitGameHolderToStage()) and
-   the bezel glow/corners/plaque all measure/position against — NOT
-   #game-stage itself anymore, so that when the controller dock is
-   present it only eats into this box's share of the height, not the
-   dock's. */
-#game-screen-area {
-  position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
-  display: flex; align-items: center; justify-content: center;
-}
-#game-holder {
-  position: relative; z-index: 2;
-  background: #000;
   /* GPU compositing — prevents repaints spilling into surrounding UI */
   will-change: transform;
   transform: translateZ(0);
@@ -754,72 +724,6 @@ input, textarea, select { font-size: 16px !important; }
   touch-action: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
-  /* Sane fallback before JS/fitGameHolderToStage() has measured anything —
-     defaults to a common 4:3 console shape. */
-  aspect-ratio: var(--sys-ar, 4 / 3);
-  max-width: 100%; max-height: 100%;
-}
-
-/* ─── Console bezel — fills the space around the aspect-locked screen ──
-   Two layers: a live, blurred glow sampled from the running game's own
-   canvas (so it adapts to literally any system/game with zero per-console
-   art needed), plus a thin static frame (corner brackets + system plaque)
-   that picks up the current UI theme's accent colour. Both are inert —
-   pointer-events:none — so they never intercept taps meant for the game
-   or its on-screen controls. */
-#game-bezel-glow {
-  position: absolute; inset: -10%; z-index: 0;
-  width: 120%; height: 120%;
-  pointer-events: none;
-  filter: blur(38px) saturate(1.35) brightness(.55);
-  opacity: 0;
-  transition: opacity .5s ease;
-}
-#game-bezel-glow.on { opacity: .85; }
-#game-bezel {
-  position: absolute; inset: 0; z-index: 1;
-  pointer-events: none;
-  /* Console-coloured frame: a soft-edged ring of the real hardware's
-     body colour (--shell-1/--shell-2, set per-system by setBezelSystem())
-     sitting in whatever margin exists between the aspect-locked screen
-     and the edge of #game-screen-area. On a snug fit there's no margin
-     to see it in, which is fine — it just sits unseen behind the game
-     canvas, same reasoning as the corner brackets below. Falls back to
-     a neutral dark vignette before any system colour has been set. */
-  background:
-    radial-gradient(120% 90% at 50% 50%, transparent 0%, transparent 42%, color-mix(in srgb, var(--shell-1, #1c1c22) 55%, transparent) 100%),
-    linear-gradient(165deg, color-mix(in srgb, var(--shell-2, #14141a) 70%, transparent) 0%, color-mix(in srgb, var(--shell-1, #1c1c22) 45%, transparent) 100%),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0px, rgba(255,255,255,.025) 1px, transparent 1px, transparent 14px);
-}
-.bezel-corner {
-  position: absolute; width: 22px; height: 22px;
-  border: 2px solid var(--shell-1, var(--accent)); opacity: .55;
-  transition: opacity .3s, border-color .3s;
-}
-#game-stage:hover .bezel-corner { opacity: .8; }
-.bezel-corner.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; border-top-left-radius: 6px; }
-.bezel-corner.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; border-top-right-radius: 6px; }
-.bezel-corner.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; border-bottom-left-radius: 6px; }
-.bezel-corner.br { bottom: 10px; right: 10px; border-left: none; border-top: none; border-bottom-right-radius: 6px; }
-.bezel-plaque {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--shell-1, var(--accent2, var(--accent))); opacity: .7;
-  padding: 4px 12px; border: 1px solid color-mix(in srgb, var(--shell-1, var(--border)) 50%, var(--border));
-  border-radius: 20px; background: rgba(0,0,0,.35);
-  white-space: nowrap; backdrop-filter: blur(4px);
-  transition: color .3s, border-color .3s;
-}
-/* Corners/plaque show on any device whenever a game is actually running
-   — tied purely to body.game-active, not to a "does the stage have slack
-   space" heuristic. In a true edge-to-edge fit they just sit directly
-   behind the game canvas (#game-holder is a higher z-index) and are
-   naturally invisible there anyway, so there's no downside to always
-   rendering them. */
-.bezel-corner, .bezel-plaque { display: none; }
-body.game-active .bezel-corner, body.game-active .bezel-plaque { display: block; }
-@media (prefers-reduced-motion: reduce) {
-  #game-bezel-glow { display: none; }
 }
 
 .actions {
@@ -1435,7 +1339,7 @@ footer {
   .rx-grid { grid-template-columns: 1fr; }
   .actions { gap: 6px; }
   .act { padding: 6px 10px; font-size: 11px; }
-  #game-stage { min-height: min(300px, 56vw); border-radius: 10px; }
+  #game-holder { min-height: min(300px, 56vw); border-radius: 10px; }
   /* Show collapse toggle on mobile so ctrl panel doesn't dominate the screen */
   .ctrl-panel-toggle { display: flex; }
   /* Start collapsed on mobile so the game is front and centre */
@@ -1623,7 +1527,7 @@ footer {
 @media (max-height: 500px) and (orientation: landscape) {
   body { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .hdr { margin-bottom: 10px; }
-  #game-stage { min-height: min(70vh, 60vw); }
+  #game-holder { min-height: min(70vh, 60vw); }
   .actions { margin-top: 6px; }
   .ctrl-body { max-height: 70vh; overflow-y: auto; }
 }
@@ -1649,7 +1553,7 @@ body.pseudo-fullscreen-active {
 /* The game canvas fills everything — uses dvh/dvw so it accounts for
    Safari's dynamic toolbar collapsing in landscape. Safe-area insets
    handle the notch/Dynamic Island on iPhone. */
-body.pseudo-fullscreen-active #game-stage {
+body.pseudo-fullscreen-active #game-holder {
   position: fixed;
   top: env(safe-area-inset-top, 0px);
   left: env(safe-area-inset-left, 0px);
@@ -1668,10 +1572,11 @@ body.pseudo-fullscreen-active #game-stage {
   transition: none;
   touch-action: none;
 }
+
 /* In true landscape on iPhone the safe-area insets cover the notch zone
    so we want the game itself to go edge-to-edge on the other axes */
 @media (orientation: landscape) {
-  body.pseudo-fullscreen-active #game-stage {
+  body.pseudo-fullscreen-active #game-holder {
     top: 0; bottom: 0;
   }
 }
@@ -1786,7 +1691,7 @@ body.game-active .hdr {
   transition: opacity .3s;
 }
 body.game-active .hdr:hover { opacity: 1; }
-body.game-active #game-stage {
+body.game-active #game-holder {
   box-shadow: 0 0 80px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.04);
 }
 body.game-active .wrap {
@@ -2389,22 +2294,7 @@ body.game-active .wrap {
       <span class="gtitle" id="gtitle"></span>
       <span class="sbadge" id="sbadge"></span>
     </div>
-    <div id="game-stage">
-      <div id="game-screen-area">
-        <canvas id="game-bezel-glow" aria-hidden="true"></canvas>
-        <div id="game-bezel" aria-hidden="true">
-          <div class="bezel-corner tl"></div>
-          <div class="bezel-corner tr"></div>
-          <div class="bezel-corner bl"></div>
-          <div class="bezel-corner br"></div>
-          <div class="bezel-plaque" id="bezel-plaque"></div>
-        </div>
-        <div id="game-holder"><div id="game"></div></div>
-      </div>
-      <!-- RPControllerSkins.attach() appends the .rp-dock controller pad
-           here as a second flex child, only on touch devices with the
-           skin toggle on, only while a game is running. -->
-    </div>
+    <div id="game-holder"><div id="game"></div></div>
     <button class="pseudo-fs-exit-btn" id="fs-exit-btn" onclick="exitPseudoFullscreen()" title="Exit fullscreen">✕</button>
 
     <!-- Fullscreen action bar removed — EJS native menu handles save/load/mute -->
@@ -2441,14 +2331,6 @@ body.game-active .wrap {
         <div class="ctrl-section on" id="ctrl-kb"></div>
         <div class="ctrl-section" id="ctrl-gp">
           <div class="note">Any USB or Bluetooth gamepad (Xbox, PlayStation, Switch Pro, 8BitDo) is detected automatically. Just plug in and press a button to activate. Re-map buttons in the ⚙️ emulator toolbar.</div>
-          <div class="ctrl-group" style="margin-top:14px">
-            <div class="ctrl-group-title">Touch controls</div>
-            <label style="display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13px;cursor:pointer">
-              <input type="checkbox" id="controller-skin-toggle" checked onchange="toggleControllerSkin(this.checked)" style="width:18px;height:18px;accent-color:var(--accent)">
-              <span>Custom on-screen controller skin</span>
-            </label>
-            <div class="settings-app-sub">Skinned per-console touch controls on phones/tablets, styled to match each system's colours — instead of the emulator's plain default overlay. Turn off to use the default touch buttons.</div>
-          </div>
         </div>
         <div class="ctrl-section" id="ctrl-ss">
           <div class="ctrl-group">
@@ -2474,7 +2356,6 @@ body.game-active .wrap {
 <div class="toast" id="toast"></div>
 
 <script src="emulator-backbone.js?v=20260818203659"></script>
-<script src="controller-skins.js?v=20260820033522"></script>
 <script>
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════
    `core` is ROM Player's own internal system id — used
@@ -2535,34 +2416,6 @@ const SYS = {
   msx:  { core:'msx',          label:'MSX',           bg:'#1e3d2a', fg:'#60f0a0' },
   rom:  { core:'msx',          label:'MSX',           bg:'#1e3d2a', fg:'#60f0a0' },
 };
-
-/* ══ CONSOLE BEZEL — native aspect ratios ═════════════
-   Keyed by sys.core (the SYS registry's own system-family key, not the
-   file extension). Used to size #game-holder so it matches each
-   console's real screen shape instead of stretching to whatever box the
-   player-size setting picked — see fitGameHolderToStage(). Approximate
-   where a system has no single fixed resolution (e.g. arcade); exact
-   pixel-perfect matching isn't the goal, just getting close enough that
-   EmulatorJS itself has little to no letterboxing left to do, so the
-   bezel — not a flat black EJS bar — is what fills the remainder. */
-const SYS_ASPECT = {
-  nes: 4/3, snes: 4/3, n64: 4/3, segaMD: 4/3, sega32x: 4/3, segaMS: 4/3,
-  psx: 4/3, pce: 4/3, a2600: 4/3, atari7800: 4/3, coleco: 4/3,
-  intellivision: 4/3, vectrex: 4/3, saturn: 4/3, segaCD: 4/3, neogeo: 4/3,
-  arcade: 4/3, msx: 4/3, threeDo: 4/3, c64: 4/3,
-  gambatte: 10/9, gbc: 10/9,                 // Game Boy / Color — 160×144
-  segaGG: 10/9,                              // Game Gear — 160×144
-  gba: 3/2,                                  // 240×160
-  ppsspp: 16/9,                              // PSP — 480×272
-  ws: 14/9, wsc: 14/9,                       // WonderSwan (landscape mode) — 224×144
-  lynx: 8/5,                                 // 160×102
-  ngp: 20/19,                                // 160×152 — near-square
-  vb: 12/7,                                  // Virtual Boy — 384×224
-  nds: 2/3,                                  // dual screens stacked — 256×384
-};
-function _sysAspectFor(sys) {
-  return SYS_ASPECT[sys && sys.core] || 4/3;
-}
 
 /* ══ KEYBOARD MAPS ══════════════════════════════════ */
 const KB = {
@@ -3112,12 +2965,7 @@ function _mobileGameHeight() {
 }
 
 function applyGameHolderHeight() {
-  // NOTE: this sizes #game-stage — the outer, user-configurable box —
-  // not #game-holder any more. #game-holder is the inner, aspect-locked
-  // screen that fitGameHolderToStage() fits inside whatever box this
-  // function produces, so the player-size setting still works exactly
-  // as before; it's just sizing the frame instead of the screen now.
-  const gh = document.getElementById('game-stage');
+  const gh = document.getElementById('game-holder');
   if (!gh) return;
 
   if (_currentSize === 'fill') {
@@ -3142,100 +2990,6 @@ function applyGameHolderHeight() {
 
   // Update preview bar
   _updateSizePreview();
-  fitGameHolderToStage();
-}
-
-/* ══ CONSOLE BEZEL ENGINE ═════════════════════════════
-   Fits the aspect-locked #game-holder inside whatever size #game-stage
-   currently is (contain-fit, both dimensions, centred) — done in JS with
-   explicit pixel dimensions rather than pure CSS aspect-ratio because
-   #game-stage's own size is already JS-driven (applyGameHolderHeight())
-   and can be an awkward mix of vh/dvh/px, so measuring the real box each
-   time is the only fully reliable way to contain-fit inside it across
-   every browser this app supports (including older iOS Safari).
-══════════════════════════════════════════════════════ */
-let _sysAspect = 4 / 3;
-let _bezelStageRO = null;
-
-function fitGameHolderToStage() {
-  // Measure #game-screen-area, not #game-stage — #game-stage may also
-  // contain the controller dock (see controller-skins.js), and that
-  // space belongs to the dock, not to the aspect-fit calculation here.
-  // Falls back to #game-stage if the wrapper's somehow missing so this
-  // never silently does nothing.
-  const area = document.getElementById('game-screen-area') || document.getElementById('game-stage');
-  const holder = document.getElementById('game-holder');
-  if (!area || !holder) return;
-
-  const sw = area.clientWidth, sh = area.clientHeight;
-  if (!sw || !sh) return;
-
-  document.documentElement.style.setProperty('--sys-ar', _sysAspect);
-
-  // Contain-fit: try full width first, fall back to full height if that
-  // would overflow vertically.
-  let w = sw, h = w / _sysAspect;
-  if (h > sh) { h = sh; w = h * _sysAspect; }
-  holder.style.width  = Math.round(w) + 'px';
-  holder.style.height = Math.round(h) + 'px';
-}
-
-function setBezelSystem(sys) {
-  _sysAspect = _sysAspectFor(sys);
-  const plaque = document.getElementById('bezel-plaque');
-  if (plaque) plaque.textContent = (sys && sys.label) || '';
-
-  // Real hardware colour, not the generic theme accent — same colour
-  // data controller-skins.js uses for the touch dock below the screen,
-  // so the two visually read as one continuous console shell. This
-  // runs unconditionally (no touch/enabled gating) so desktop players
-  // get the coloured screen surround even though they never get a
-  // touch dock at all.
-  const stage = document.getElementById('game-stage');
-  if (stage) {
-    const colors = (window.RPControllerSkins && sys && sys.core)
-      ? window.RPControllerSkins.getBodyColors(sys.core)
-      : null;
-    if (colors) {
-      stage.style.setProperty('--shell-1', colors.bodyColor);
-      stage.style.setProperty('--shell-2', colors.bodyColor2);
-    } else {
-      stage.style.removeProperty('--shell-1');
-      stage.style.removeProperty('--shell-2');
-    }
-  }
-
-  fitGameHolderToStage();
-}
-
-// Ambient glow — samples the live game canvas, scaled down (cheap) and
-// blurred via CSS (GPU), Ambilight-style. Adapts to any system/game
-// automatically since it's just reflecting whatever is actually on
-// screen, rather than needing bespoke art per console.
-let _glowCtx = null, _glowTimer = null;
-function startBezelGlow() {
-  stopBezelGlow();
-  const glowCanvas = document.getElementById('game-bezel-glow');
-  if (!glowCanvas) return;
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  _glowCtx = glowCanvas.getContext('2d', { alpha: false });
-  glowCanvas.width = 64; glowCanvas.height = 48; // tiny — it's blurred to mush anyway
-  glowCanvas.classList.add('on');
-  _glowTimer = setInterval(_drawBezelGlow, 250);
-}
-function _drawBezelGlow() {
-  if (!_glowCtx) return;
-  const src = document.querySelector('#game canvas, #game-holder canvas');
-  if (!src || !src.width || !src.height) return;
-  try {
-    _glowCtx.drawImage(src, 0, 0, _glowCtx.canvas.width, _glowCtx.canvas.height);
-  } catch (e) { /* cross-origin or not-yet-rendered frame — skip this tick */ }
-}
-function stopBezelGlow() {
-  if (_glowTimer) { clearInterval(_glowTimer); _glowTimer = null; }
-  _glowCtx = null;
-  const glowCanvas = document.getElementById('game-bezel-glow');
-  if (glowCanvas) glowCanvas.classList.remove('on');
 }
 
 function _updateSizePreview() {
@@ -3258,19 +3012,6 @@ function renderSizeOptions() {
 // Re-calculate mobile height on resize (keyboard appearing/disappearing, rotation)
 window.addEventListener('resize', () => {
   if (_currentSize === 'mobile') applyGameHolderHeight();
-  else fitGameHolderToStage();
-});
-
-// Catches every #game-stage size change regardless of cause (window
-// resize, orientation flip, entering/exiting fullscreen, the ctrl panel
-// collapsing on mobile and giving the stage more height, etc.) — more
-// reliable than trying to enumerate every event that could resize it.
-document.addEventListener('DOMContentLoaded', () => {
-  const stage = document.getElementById('game-stage');
-  if (stage && 'ResizeObserver' in window) {
-    _bezelStageRO = new ResizeObserver(() => fitGameHolderToStage());
-    _bezelStageRO.observe(stage);
-  }
 });
 
 // Apply saved size on load — deferred so it doesn't block first paint
@@ -3292,31 +3033,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme(savedTheme || _currentTheme, true);
   applyGameHolderHeight();
   renderRecentlyPlayed();
-
-  const savedSkinPref = await prefGet('rp-controller-skin', localStorage.getItem('rp-controller-skin'));
-  const skinEnabled = savedSkinPref === null || savedSkinPref === undefined ? true : (savedSkinPref === true || savedSkinPref === 'true');
-  if (window.RPControllerSkins) RPControllerSkins.setEnabled(skinEnabled);
-  const skinToggle = document.getElementById('controller-skin-toggle');
-  if (skinToggle) skinToggle.checked = skinEnabled;
 });
-
-// Custom on-screen controller-skin toggle (Settings → Controls → Gamepad).
-// Live-applies mid-game: switching it off tears the skin down immediately
-// and falls back to EmulatorJS's own default touch overlay; switching it
-// back on re-attaches the skin for whatever system is currently running.
-function toggleControllerSkin(checked) {
-  prefSet('rp-controller-skin', checked);
-  if (!window.RPControllerSkins) return;
-  RPControllerSkins.setEnabled(checked);
-  if (_ejsReady && _currentGame) {
-    const core = _currentGame.split('::')[0];
-    if (checked) {
-      RPControllerSkins.attach(core, document.getElementById('game-stage'));
-    } else {
-      RPControllerSkins.detach();
-    }
-  }
-}
 
 /* ══ HEADER CLOCK ════════════════════════════════════ */
 let _clockPrev = '';
@@ -5023,7 +4740,6 @@ async function launch(romUrl, sys, name, file) {
     document.getElementById('gtitle').textContent = name;
     const badge = document.getElementById('sbadge');
     badge.textContent = sys.label; badge.style.background = sys.bg; badge.style.color = sys.fg;
-    setBezelSystem(sys);
     if (file) libAdd(name, sys.label, sys.core, file);
     _currentGame = sys.core + '::' + name;
     renderSlots(); renderKeys(sys.core); cleanup();
@@ -5047,12 +4763,7 @@ async function launch(romUrl, sys, name, file) {
       _sessionStart = Date.now();
       hideLaunchSplash();
       document.body.classList.add('game-active');
-      fitGameHolderToStage();
-      startBezelGlow();
       maybeRecommendController();
-      if (window.RPControllerSkins) {
-        RPControllerSkins.attach(sys.core, document.getElementById('game-stage'));
-      }
       // On mobile, collapse the ctrl panel so the game gets max space
       if (_isMobileScreen()) {
         const panel = document.getElementById('ctrl-panel');
@@ -5444,11 +5155,7 @@ let _pseudoFullscreen  = false;
 let _fsActionBarTimer  = null;
 
 function goFull() {
-  // Fullscreens #game-stage, not #game-holder — that's what keeps the
-  // bezel (corner brackets, plaque, ambient glow) in frame instead of
-  // just fullscreening the bare aspect-locked screen with flat black
-  // bars either side of it.
-  const el = document.getElementById('game-stage');
+  const el = document.getElementById('game-holder');
 
   // iOS Safari: requestFullscreen is literally undefined for divs
   const iosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -5478,14 +5185,13 @@ function enterPseudoFullscreen() {
   }
 
   // Wire tap-to-reveal action bar
-  const holder = document.getElementById('game-stage');
+  const holder = document.getElementById('game-holder');
   holder.addEventListener('click', _fsHolderTap, { passive: true });
 
   // Show action bar briefly on entry so the user knows it exists
   _showFsActionBar(2800);
 
   // Update gamepad badge
-  requestAnimationFrame(fitGameHolderToStage);
   _updateGpBadge();
 }
 
@@ -5499,10 +5205,9 @@ function exitPseudoFullscreen() {
   }
 
   // Clean up listeners and timers
-  const holder = document.getElementById('game-stage');
+  const holder = document.getElementById('game-holder');
   holder.removeEventListener('click', _fsHolderTap);
   _hideFsActionBar();
-  requestAnimationFrame(fitGameHolderToStage);
 }
 
 // Tapping the game holder in fullscreen no longer shows an action bar —
@@ -5549,7 +5254,6 @@ window.addEventListener('orientationchange', () => {
   document.addEventListener(evt, () => {
     const isFs = document.fullscreenElement || document.webkitFullscreenElement;
     if (!isFs && _pseudoFullscreen) exitPseudoFullscreen();
-    requestAnimationFrame(fitGameHolderToStage);
   });
 });
 
@@ -5571,8 +5275,6 @@ window.addEventListener('gamepaddisconnected', () => {
 /* ══ CLEANUP / NAVIGATION ════════════════════════════ */
 function cleanup() {
   _ejsReady = false;
-  stopBezelGlow();
-  if (window.RPControllerSkins) RPControllerSkins.detach();
   document.getElementById('ejs-loader') && document.getElementById('ejs-loader').remove();
   document.querySelectorAll('script[src*="emulatorjs"],script[src*="cdn.emulatorjs"]').forEach(s=>s.remove());
   // Tears down the backbone's own wrapper state (revokes any object URLs it
@@ -5965,7 +5667,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260820033522';
+const APP_VERSION = '20260818203659';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
