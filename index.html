@@ -2289,12 +2289,8 @@ body.game-active .wrap {
   <div class="modal-bg" id="sys-choice-modal">
     <div class="modal">
       <h3>💿 Which console is this?</h3>
-      <p>.iso is used by both PS1 and PSP — pick the right one so the correct core loads.</p>
-      <div class="modal-actions">
-        <button class="lib-btn" onclick="cancelIsoSystemChoice()">Cancel</button>
-        <button class="lib-btn primary" onclick="pickIsoSystem('iso')">PS1</button>
-        <button class="lib-btn primary" onclick="pickIsoSystem('isoPsp')">PSP</button>
-      </div>
+      <p><span id="sys-choice-ext">This extension</span> is used by more than one system here — pick the right one so the correct core loads.</p>
+      <div class="modal-actions" id="sys-choice-buttons"></div>
     </div>
   </div>
 
@@ -2366,7 +2362,7 @@ body.game-active .wrap {
 <footer>ROM Player by Coops · Emulation core: <a href="https://emulatorjs.org" target="_blank" rel="noopener">EmulatorJS</a>, booted via our own <a href="https://github.com/coops-emulator/coops_emulator_backbone" target="_blank" rel="noopener">coops_emulator_backbone</a> wrapper · Runs 100% locally · No data uploaded</footer>
 <div class="toast" id="toast"></div>
 
-<script src="emulator-backbone.js?v=20260820202736"></script>
+<script src="emulator-backbone.js?v=20260821011317"></script>
 <script>
 /* ══ SYSTEM DEFINITIONS ══════════════════════════════
    `core` is ROM Player's own internal system id — used
@@ -2401,6 +2397,13 @@ const SYS = {
   gg:   { core:'segaGG',       label:'Game Gear',     bg:'#1e2e3d', fg:'#60a8f0', ejsSystem:'gameGear' },
   sms:  { core:'segaMS',       label:'Master System', bg:'#1e2e3d', fg:'#60a8f0', ejsSystem:'masterSystem' },
   cue:  { core:'psx',          label:'PS1',           bg:'#3d1e1e', fg:'#f07070', ejsSystem:'psx' },
+  // Canonical PS1 entry — used as one of the disambiguation options below
+  // for .iso/.cue/.chd/.bin, all of which are genuinely shared with other
+  // supported systems (verified against each system's own `extensions`
+  // array in emulator-backbone.js's CORE_REGISTRY). Kept separate from the
+  // plain .cue/.iso/.chd entries above so "the PS1 option" has one
+  // canonical name instead of an arbitrary borrowed extension key.
+  psx:  { core:'psx',          label:'PS1',           bg:'#3d1e1e', fg:'#f07070', ejsSystem:'psx' },
   iso:  { core:'psx',          label:'PS1',           bg:'#3d1e1e', fg:'#f07070', ejsSystem:'psx' },
   img:  { core:'psx',          label:'PS1',           bg:'#3d1e1e', fg:'#f07070', ejsSystem:'psx' },
   bin:  { core:'psx',          label:'PS1',           bg:'#3d1e1e', fg:'#f07070', ejsSystem:'psx' },
@@ -4033,7 +4036,7 @@ document.getElementById('relaunch-inp').addEventListener('change', async functio
   closeRelaunchModal();
   const ext = file.name.split('.').pop().toLowerCase();
   const sys = await resolveSysForExt(ext);
-  if (!sys) { if (ext !== 'iso') showErr('Unsupported format.'); return; }
+  if (!sys) { if (!AMBIGUOUS_EXT[ext]) showErr('Unsupported format.'); return; }
   launch(URL.createObjectURL(file), sys, _pendingRelaunch.name, file);
 });
 document.getElementById('relaunch-modal').addEventListener('click', function(e) {
@@ -4557,7 +4560,7 @@ async function rxShareFile(file) {
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
   const sys = await resolveSysForExt(ext);
-  if (!sys) { if (ext !== 'iso') showToast('⚠️ Unsupported format'); return; }
+  if (!sys) { if (!AMBIGUOUS_EXT[ext]) showToast('⚠️ Unsupported format'); return; }
   const id = Date.now() + '-' + Math.random().toString(36).slice(2);
   const buf = await file.arrayBuffer();
   const rom = {
@@ -4657,29 +4660,60 @@ function showErr(msg) {
   el.textContent = msg; el.style.display = 'block';
 }
 
-// .iso is used by both PS1 discs and PSP UMD dumps — the extension alone
-// can't tell them apart, and guessing wrong means the wrong core loads
-// (previously every .iso silently forced PS1, so PSP .iso dumps — the
-// most common PSP format alongside .cso — never worked). Ask once.
+// Extensions genuinely shared by more than one supported system — cross-
+// checked directly against each system's own `extensions` array in
+// emulator-backbone.js's CORE_REGISTRY (the source of truth for what each
+// core will actually accept), not guessed. Guessing wrong here doesn't
+// just mislabel a game, it boots the wrong emulation core outright and
+// fails — previously every .iso silently forced PS1 (so PSP .iso dumps,
+// the most common PSP format alongside .cso, never worked), and .chd/.cue
+// were force-PS1'd too even though Sega CD and Saturn both genuinely use
+// them (Sega CD/Saturn .chd loads were silently booting the PS1 core and
+// failing). Ask once instead of guessing.
+const AMBIGUOUS_EXT = {
+  iso: ['psx', 'isoPsp', 'scd', 'sat'],   // PS1 / PSP / Sega CD / Saturn
+  cue: ['psx', 'scd', 'sat', 'pce'],      // PS1 / Sega CD / Saturn / PC Engine
+  chd: ['psx', 'scd', 'sat'],             // PS1 / Sega CD / Saturn
+  bin: ['psx', 'gen', 'a26'],             // PS1 / Genesis / Atari 2600
+};
+
 let _sysChoiceResolve = null;
-function showIsoSystemChoice() {
+function showSystemChoice(ext, sysKeys) {
   return new Promise(resolve => {
     _sysChoiceResolve = resolve;
+    const box = document.getElementById('sys-choice-buttons');
+    box.innerHTML = '';
+    sysKeys.forEach(key => {
+      const sys = SYS[key];
+      if (!sys) return;
+      const btn = document.createElement('button');
+      btn.className = 'lib-btn primary';
+      btn.textContent = sys.label;
+      btn.onclick = () => pickSystemChoice(key);
+      box.appendChild(btn);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'lib-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => cancelSystemChoice();
+    box.appendChild(cancelBtn);
+    document.getElementById('sys-choice-ext').textContent = '.' + ext;
     document.getElementById('sys-choice-modal').classList.add('open');
   });
 }
-function pickIsoSystem(sysKey) {
+function pickSystemChoice(sysKey) {
   document.getElementById('sys-choice-modal').classList.remove('open');
   const resolve = _sysChoiceResolve; _sysChoiceResolve = null;
   if (resolve) resolve(SYS[sysKey] || null);
 }
-function cancelIsoSystemChoice() {
+function cancelSystemChoice() {
   document.getElementById('sys-choice-modal').classList.remove('open');
   const resolve = _sysChoiceResolve; _sysChoiceResolve = null;
   if (resolve) resolve(null);
 }
 async function resolveSysForExt(ext) {
-  if (ext === 'iso') return showIsoSystemChoice();
+  const choices = AMBIGUOUS_EXT[ext];
+  if (choices) return showSystemChoice(ext, choices);
   return SYS[ext] || null;
 }
 
@@ -4688,7 +4722,7 @@ async function handleFile(file) {
   document.getElementById('err').style.display = 'none';
   const ext = file.name.split('.').pop().toLowerCase();
   const sys = await resolveSysForExt(ext);
-  if (!sys) { if (ext !== 'iso') showErr('Unsupported format: .' + ext); return; }
+  if (!sys) { if (!AMBIGUOUS_EXT[ext]) showErr('Unsupported format: .' + ext); return; }
   const name = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
 
   const dupe = await findLikelyDuplicate(name, sys.core);
@@ -5797,7 +5831,7 @@ _storageReadyPromise.then(async () => {
    the server every load. If newer, the update banner
    appears automatically in Settings.
 ═══════════════════════════════════════════════════ */
-const APP_VERSION = '20260820202736';
+const APP_VERSION = '20260821011317';
 
 // VERSION_URL: source of truth for checking whether an update is available.
 // We check our own Cloudflare domain first — instant and always in sync with what's live.
